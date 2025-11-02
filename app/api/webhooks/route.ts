@@ -38,24 +38,16 @@ async function handleWebhookEvent(webhookData: any) {
 		const action = webhookData.action;
 
 		switch (action) {
-			case "app.installed":
-				await handleAppInstalled(webhookData.data);
-				break;
-
-			case "app.uninstalled":
-				await handleAppUninstalled(webhookData.data);
+			case "payment.succeeded":
+				await handlePaymentSucceeded(webhookData.data);
 				break;
 
 			case "membership.went_valid":
-				await handleMembershipValid(webhookData.data);
+				await handleMembershipActivated(webhookData.data);
 				break;
 
 			case "membership.went_invalid":
-				await handleMembershipInvalid(webhookData.data);
-				break;
-
-			case "membership.renewed":
-				await handleMembershipRenewed(webhookData.data);
+				await handleMembershipDeactivated(webhookData.data);
 				break;
 
 			default:
@@ -90,55 +82,61 @@ async function handleWebhookEvent(webhookData: any) {
 	}
 }
 
-async function handleAppInstalled(data: any) {
-	const companyId = data.company_id;
-	const experienceId = data.experience_id;
-
-	// Create or update company record
-	await prisma.company.upsert({
-		where: { id: companyId },
-		create: {
-			id: companyId,
-			name: data.company_name ?? "Unknown Company",
-			experienceId,
-			isActive: true,
-		},
-		update: {
-			isActive: true,
-			uninstalledAt: null,
-		},
-	});
-
-	console.log(`App installed for company ${companyId}`);
-}
-
-async function handleAppUninstalled(data: any) {
-	const companyId = data.company_id;
-
-	// Mark company as inactive
-	await prisma.company.update({
-		where: { id: companyId },
-		data: {
-			isActive: false,
-			uninstalledAt: new Date(),
-		},
-	});
-
-	console.log(`App uninstalled for company ${companyId}`);
-}
-
-async function handleMembershipValid(data: any) {
+async function handlePaymentSucceeded(data: any) {
 	const userId = data.user_id;
 	const companyId = data.company_id;
+
+	console.log(`Payment succeeded for user ${userId} in company ${companyId}`);
+
+	// Create or update user
+	if (userId) {
+		await prisma.user.upsert({
+			where: { id: userId },
+			create: {
+				id: userId,
+			},
+			update: {},
+		});
+	}
+}
+
+async function handleMembershipActivated(data: any) {
+	const userId = data.user?.id;
+	const companyId = data.company_id;
 	const membershipId = data.id;
+	const expiresAt = data.expires_at ? new Date(data.expires_at * 1000) : null;
+
+	if (!userId || !companyId) {
+		console.error("Missing userId or companyId in membership activation");
+		return;
+	}
 
 	// Create or update user
 	await prisma.user.upsert({
 		where: { id: userId },
 		create: {
 			id: userId,
+			email: data.user?.email,
+			username: data.user?.username,
 		},
-		update: {},
+		update: {
+			email: data.user?.email,
+			username: data.user?.username,
+		},
+	});
+
+	// Create or update company
+	await prisma.company.upsert({
+		where: { id: companyId },
+		create: {
+			id: companyId,
+			name: data.company?.name ?? "Unknown Company",
+			experienceId: data.experience_id ?? companyId,
+			isActive: true,
+		},
+		update: {
+			isActive: true,
+		},
 	});
 
 	// Grant access
@@ -155,20 +153,27 @@ async function handleMembershipValid(data: any) {
 			membershipId,
 			hasAccess: true,
 			role: "member",
+			expiresAt,
 		},
 		update: {
 			hasAccess: true,
 			membershipId,
 			lastVerified: new Date(),
+			expiresAt,
 		},
 	});
 
 	console.log(`Granted access for user ${userId} to company ${companyId}`);
 }
 
-async function handleMembershipInvalid(data: any) {
-	const userId = data.user_id;
+async function handleMembershipDeactivated(data: any) {
+	const userId = data.user?.id;
 	const companyId = data.company_id;
+
+	if (!userId || !companyId) {
+		console.error("Missing userId or companyId in membership deactivation");
+		return;
+	}
 
 	// Revoke access
 	await prisma.userCompany.updateMany({
@@ -183,25 +188,4 @@ async function handleMembershipInvalid(data: any) {
 	});
 
 	console.log(`Revoked access for user ${userId} from company ${companyId}`);
-}
-
-async function handleMembershipRenewed(data: any) {
-	const userId = data.user_id;
-	const companyId = data.company_id;
-	const expiresAt = data.expires_at ? new Date(data.expires_at * 1000) : null;
-
-	// Update membership
-	await prisma.userCompany.updateMany({
-		where: {
-			userId,
-			companyId,
-		},
-		data: {
-			hasAccess: true,
-			expiresAt,
-			lastVerified: new Date(),
-		},
-	});
-
-	console.log(`Renewed membership for user ${userId} in company ${companyId}`);
 }
