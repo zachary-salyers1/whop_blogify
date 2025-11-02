@@ -38,15 +38,15 @@ async function handleWebhookEvent(webhookData: any) {
 		const action = webhookData.action;
 
 		switch (action) {
-			case "payment.succeeded":
+			case "payment_succeeded":
 				await handlePaymentSucceeded(webhookData.data);
 				break;
 
-			case "membership.went_valid":
+			case "membership_activated":
 				await handleMembershipActivated(webhookData.data);
 				break;
 
-			case "membership.went_invalid":
+			case "membership_deactivated":
 				await handleMembershipDeactivated(webhookData.data);
 				break;
 
