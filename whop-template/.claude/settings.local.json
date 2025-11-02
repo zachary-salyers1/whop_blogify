@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx whop-proxy:*)",
+      "Bash(npx next dev:*)",
+      "Bash(pnpm dev:*)"
+    ],
+    "deny": []
+  }
+}
