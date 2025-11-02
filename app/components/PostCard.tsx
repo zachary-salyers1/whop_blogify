@@ -94,10 +94,10 @@ export function PostCard({ post, onLike, onUnlike, onDelete, canDelete }: PostCa
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-black">{post.user.name}</span>
-            <span className="text-gray-700 font-medium">@{post.user.username}</span>
+            <span className="font-black text-black text-base">{post.user.name}</span>
+            <span className="text-black font-bold text-sm">@{post.user.username}</span>
           </div>
-          <div className="text-sm text-gray-700 font-medium">
+          <div className="text-sm text-black font-bold">
             {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
           </div>
         </div>
