@@ -1,110 +1,157 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { PostCard } from './components/PostCard'
+import { CreatePostForm } from './components/CreatePostForm'
+
+interface Post {
+  id: string
+  content: string
+  contentType: string
+  isPinned: boolean
+  likesCount: number
+  commentsCount: number
+  createdAt: string
+  isLikedByUser: boolean
+  user: {
+    id: string
+    username: string
+    name: string
+    profilePicUrl: string
+  }
+  company: {
+    id: string
+    name: string
+  }
+  firstImage?: {
+    url: string
+    thumbnailUrl?: string
+    width?: number
+    height?: number
+  } | null
+}
+
 export default function Page() {
+	const [posts, setPosts] = useState<Post[]>([])
+	const [isLoading, setIsLoading] = useState(true)
+	const [error, setError] = useState('')
+	const [page, setPage] = useState(1)
+	const [hasMore, setHasMore] = useState(true)
+
+	const fetchPosts = async (pageNum: number = 1) => {
+		try {
+			setIsLoading(true)
+			const response = await fetch(`/api/posts?page=${pageNum}&limit=20`)
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch posts')
+			}
+
+			const data = await response.json()
+
+			if (pageNum === 1) {
+				setPosts(data.data)
+			} else {
+				setPosts(prev => [...prev, ...data.data])
+			}
+
+			setHasMore(data.pagination.page < data.pagination.totalPages)
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Failed to load posts')
+		} finally {
+			setIsLoading(false)
+		}
+	}
+
+	useEffect(() => {
+		fetchPosts(1)
+	}, [])
+
+	const handleLike = async (postId: string) => {
+		await fetch(`/api/posts/${postId}/like`, { method: 'POST' })
+	}
+
+	const handleUnlike = async (postId: string) => {
+		await fetch(`/api/posts/${postId}/like`, { method: 'DELETE' })
+	}
+
+	const handleDelete = async (postId: string) => {
+		await fetch(`/api/posts/${postId}`, { method: 'DELETE' })
+		setPosts(prev => prev.filter(p => p.id !== postId))
+	}
+
+	const handlePostCreated = () => {
+		fetchPosts(1)
+		setPage(1)
+	}
+
+	const loadMore = () => {
+		const nextPage = page + 1
+		setPage(nextPage)
+		fetchPosts(nextPage)
+	}
+
 	return (
-		<div className="min-h-screen bg-gray-a12 py-12 px-4 sm:px-6 lg:px-8">
-			<div className="max-w-3xl mx-auto">
-				<div className="text-center mb-12">
-					<h1 className="text-8 font-bold text-gray-9 mb-4">
-						Welcome to Your Whop App
+		<div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+			<div className="max-w-2xl mx-auto">
+				<div className="mb-8">
+					<h1 className="text-3xl font-bold text-gray-900 mb-2">
+						Community Feed
 					</h1>
-					<p className="text-4 text-gray-6">
-						Follow these steps to get started with your Whop application
+					<p className="text-gray-600">
+						Share updates and connect with your community
 					</p>
 				</div>
 
-				<div className="space-y-8">
-					<div className="bg-white p-6 rounded-lg shadow-md">
-						<h2 className="text-5 font-semibold text-gray-9 mb-4 flex items-center">
-							<span className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-accent-9 text-white mr-3">
-								1
-							</span>
-							Create your Whop app
-						</h2>
-						<p className="text-gray-6 ml-11">
-							Go to your{" "}
-							<a
-								href="https://whop.com/dashboard"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="text-accent-9 hover:text-accent-10 underline"
-							>
-								Whop Dashboard
-							</a>{" "}
-							and create a new app in the Developer section.
-						</p>
-					</div>
+				<CreatePostForm onPostCreated={handlePostCreated} />
 
-					<div className="bg-white p-6 rounded-lg shadow-md">
-						<h2 className="text-5 font-semibold text-gray-9 mb-4 flex items-center">
-							<span className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-accent-9 text-white mr-3">
-								2
-							</span>
-							Set up environment variables
-						</h2>
-						<p className="text-gray-6 ml-11 mb-4">
-							Copy the .env file from your dashboard and create a new .env file
-							in your project root. This will contain all the necessary
-							environment variables for your app.
-						</p>
-						{process.env.NODE_ENV === "development" && (
-							<div className="text-gray-6 ml-11">
-								<pre>
-									<code>
-										WHOP_API_KEY={process.env.WHOP_API_KEY?.slice(0, 5)}...
-										<br />
-										NEXT_PUBLIC_WHOP_AGENT_USER_ID=
-										{process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID}
-										<br />
-										NEXT_PUBLIC_WHOP_APP_ID=
-										{process.env.NEXT_PUBLIC_WHOP_APP_ID}
-										<br />
-										NEXT_PUBLIC_WHOP_COMPANY_ID=
-										{process.env.NEXT_PUBLIC_WHOP_COMPANY_ID}
-									</code>
-								</pre>
+				{error && (
+					<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+						{error}
+					</div>
+				)}
+
+				{isLoading && posts.length === 0 ? (
+					<div className="text-center py-12">
+						<div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+						<p className="mt-4 text-gray-600">Loading posts...</p>
+					</div>
+				) : posts.length === 0 ? (
+					<div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
+						<svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+						</svg>
+						<h3 className="mt-4 text-lg font-medium text-gray-900">No posts yet</h3>
+						<p className="mt-2 text-gray-600">Be the first to share something!</p>
+					</div>
+				) : (
+					<>
+						<div className="space-y-6">
+							{posts.map((post) => (
+								<PostCard
+									key={post.id}
+									post={post}
+									onLike={handleLike}
+									onUnlike={handleUnlike}
+									onDelete={handleDelete}
+									canDelete={true}
+								/>
+							))}
+						</div>
+
+						{hasMore && (
+							<div className="mt-6 text-center">
+								<button
+									onClick={loadMore}
+									disabled={isLoading}
+									className="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+								>
+									{isLoading ? 'Loading...' : 'Load More'}
+								</button>
 							</div>
 						)}
-					</div>
-
-					<div className="bg-white p-6 rounded-lg shadow-md">
-						<h2 className="text-5 font-semibold text-gray-9 mb-4 flex items-center">
-							<span className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-accent-9 text-white mr-3">
-								3
-							</span>
-							Install your app into your whop
-						</h2>
-						<p className="text-gray-6 ml-11">
-							{process.env.NEXT_PUBLIC_WHOP_APP_ID ? (
-								<a
-									href={`https://whop.com/apps/${process.env.NEXT_PUBLIC_WHOP_APP_ID}/install`}
-									target="_blank"
-									rel="noopener noreferrer"
-									className="text-accent-9 hover:text-accent-10 underline"
-								>
-									Click here to install your app
-								</a>
-							) : (
-								<span className="text-amber-600">
-									Please set your environment variables to see the installation
-									link
-								</span>
-							)}
-						</p>
-					</div>
-				</div>
-
-				<div className="mt-12 text-center text-2 text-gray-5">
-					<p>
-						Need help? Visit the{" "}
-						<a
-							href="https://dev.whop.com"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="text-accent-9 hover:text-accent-10 underline"
-						>
-							Whop Documentation
-						</a>
-					</p>
-				</div>
+					</>
+				)}
 			</div>
 		</div>
 	);

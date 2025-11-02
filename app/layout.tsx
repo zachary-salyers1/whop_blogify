@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-	title: "Whop App",
-	description: "My Whop App",
+	title: "Community Feed - Whop Blogify",
+	description: "Share updates and connect with your community",
 };
 
 export default function RootLayout({
