@@ -1,48 +1,207 @@
 import { waitUntil } from "@vercel/functions";
 import { makeWebhookValidator } from "@whop/api";
 import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 const validateWebhook = makeWebhookValidator({
 	webhookSecret: process.env.WHOP_WEBHOOK_SECRET ?? "fallback",
 });
 
 export async function POST(request: NextRequest): Promise<Response> {
-	// Validate the webhook to ensure it's from Whop
-	const webhookData = await validateWebhook(request);
+	try {
+		// Validate the webhook to ensure it's from Whop
+		const webhookData = await validateWebhook(request);
 
-	// Handle the webhook event
-	if (webhookData.action === "payment.succeeded") {
-		const { id, final_amount, amount_after_fees, currency, user_id } =
-			webhookData.data;
+		// Log webhook event for debugging
+		await prisma.webhookEvent.create({
+			data: {
+				eventType: webhookData.action,
+				eventId: webhookData.data?.id ?? undefined,
+				payload: webhookData as any,
+			},
+		});
 
-		// final_amount is the amount the user paid
-		// amount_after_fees is the amount that is received by you, after card fees and processing fees are taken out
+		// Handle different webhook events
+		waitUntil(handleWebhookEvent(webhookData));
 
-		console.log(
-			`Payment ${id} succeeded for ${user_id} with amount ${final_amount} ${currency}`,
-		);
-
-		// if you need to do work that takes a long time, use waitUntil to run it in the background
-		waitUntil(
-			potentiallyLongRunningHandler(
-				user_id,
-				final_amount,
-				currency,
-				amount_after_fees,
-			),
-		);
+		// Make sure to return a 2xx status code quickly. Otherwise the webhook will be retried.
+		return new Response("OK", { status: 200 });
+	} catch (error) {
+		console.error("Webhook error:", error);
+		// Still return 200 to prevent retries for invalid webhooks
+		return new Response("OK", { status: 200 });
 	}
-
-	// Make sure to return a 2xx status code quickly. Otherwise the webhook will be retried.
-	return new Response("OK", { status: 200 });
 }
 
-async function potentiallyLongRunningHandler(
-	_user_id: string | null | undefined,
-	_amount: number,
-	_currency: string,
-	_amount_after_fees: number | null | undefined,
-) {
-	// This is a placeholder for a potentially long running operation
-	// In a real scenario, you might need to fetch user data, update a database, etc.
+async function handleWebhookEvent(webhookData: any) {
+	try {
+		const action = webhookData.action;
+
+		switch (action) {
+			case "app.installed":
+				await handleAppInstalled(webhookData.data);
+				break;
+
+			case "app.uninstalled":
+				await handleAppUninstalled(webhookData.data);
+				break;
+
+			case "membership.went_valid":
+				await handleMembershipValid(webhookData.data);
+				break;
+
+			case "membership.went_invalid":
+				await handleMembershipInvalid(webhookData.data);
+				break;
+
+			case "membership.renewed":
+				await handleMembershipRenewed(webhookData.data);
+				break;
+
+			default:
+				console.log(`Unhandled webhook event: ${action}`);
+		}
+
+		// Mark webhook as processed
+		await prisma.webhookEvent.updateMany({
+			where: {
+				eventId: webhookData.data?.id,
+			},
+			data: {
+				processed: true,
+				processedAt: new Date(),
+			},
+		});
+	} catch (error) {
+		console.error("Error handling webhook event:", error);
+
+		// Mark webhook as failed
+		await prisma.webhookEvent.updateMany({
+			where: {
+				eventId: webhookData.data?.id,
+			},
+			data: {
+				error: error instanceof Error ? error.message : "Unknown error",
+				retryCount: {
+					increment: 1,
+				},
+			},
+		});
+	}
+}
+
+async function handleAppInstalled(data: any) {
+	const companyId = data.company_id;
+	const experienceId = data.experience_id;
+
+	// Create or update company record
+	await prisma.company.upsert({
+		where: { id: companyId },
+		create: {
+			id: companyId,
+			name: data.company_name ?? "Unknown Company",
+			experienceId,
+			isActive: true,
+		},
+		update: {
+			isActive: true,
+			uninstalledAt: null,
+		},
+	});
+
+	console.log(`App installed for company ${companyId}`);
+}
+
+async function handleAppUninstalled(data: any) {
+	const companyId = data.company_id;
+
+	// Mark company as inactive
+	await prisma.company.update({
+		where: { id: companyId },
+		data: {
+			isActive: false,
+			uninstalledAt: new Date(),
+		},
+	});
+
+	console.log(`App uninstalled for company ${companyId}`);
+}
+
+async function handleMembershipValid(data: any) {
+	const userId = data.user_id;
+	const companyId = data.company_id;
+	const membershipId = data.id;
+
+	// Create or update user
+	await prisma.user.upsert({
+		where: { id: userId },
+		create: {
+			id: userId,
+		},
+		update: {},
+	});
+
+	// Grant access
+	await prisma.userCompany.upsert({
+		where: {
+			unique_user_company: {
+				userId,
+				companyId,
+			},
+		},
+		create: {
+			userId,
+			companyId,
+			membershipId,
+			hasAccess: true,
+			role: "member",
+		},
+		update: {
+			hasAccess: true,
+			membershipId,
+			lastVerified: new Date(),
+		},
+	});
+
+	console.log(`Granted access for user ${userId} to company ${companyId}`);
+}
+
+async function handleMembershipInvalid(data: any) {
+	const userId = data.user_id;
+	const companyId = data.company_id;
+
+	// Revoke access
+	await prisma.userCompany.updateMany({
+		where: {
+			userId,
+			companyId,
+		},
+		data: {
+			hasAccess: false,
+			lastVerified: new Date(),
+		},
+	});
+
+	console.log(`Revoked access for user ${userId} from company ${companyId}`);
+}
+
+async function handleMembershipRenewed(data: any) {
+	const userId = data.user_id;
+	const companyId = data.company_id;
+	const expiresAt = data.expires_at ? new Date(data.expires_at * 1000) : null;
+
+	// Update membership
+	await prisma.userCompany.updateMany({
+		where: {
+			userId,
+			companyId,
+		},
+		data: {
+			hasAccess: true,
+			expiresAt,
+			lastVerified: new Date(),
+		},
+	});
+
+	console.log(`Renewed membership for user ${userId} in company ${companyId}`);
 }
