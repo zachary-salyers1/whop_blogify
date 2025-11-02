@@ -92,13 +92,13 @@ export default function Page() {
 	}
 
 	return (
-		<div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+		<div className="min-h-screen bg-white py-8 px-4 sm:px-6 lg:px-8">
 			<div className="max-w-2xl mx-auto">
 				<div className="mb-8">
-					<h1 className="text-3xl font-bold text-gray-900 mb-2">
+					<h1 className="text-3xl font-bold text-black mb-2">
 						Community Feed
 					</h1>
-					<p className="text-gray-600">
+					<p className="text-black">
 						Share updates and connect with your community
 					</p>
 				</div>
@@ -114,15 +114,15 @@ export default function Page() {
 				{isLoading && posts.length === 0 ? (
 					<div className="text-center py-12">
 						<div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-						<p className="mt-4 text-gray-600">Loading posts...</p>
+						<p className="mt-4 text-black font-medium">Loading posts...</p>
 					</div>
 				) : posts.length === 0 ? (
-					<div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
-						<svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<div className="text-center py-12 bg-gray-50 rounded-lg shadow-sm border border-gray-300">
+						<svg className="mx-auto h-12 w-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
 						</svg>
-						<h3 className="mt-4 text-lg font-medium text-gray-900">No posts yet</h3>
-						<p className="mt-2 text-gray-600">Be the first to share something!</p>
+						<h3 className="mt-4 text-lg font-bold text-black">No posts yet</h3>
+						<p className="mt-2 text-black">Be the first to share something!</p>
 					</div>
 				) : (
 					<>
@@ -144,7 +144,7 @@ export default function Page() {
 								<button
 									onClick={loadMore}
 									disabled={isLoading}
-									className="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+									className="px-6 py-3 bg-blue-600 border border-blue-700 text-white font-bold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 								>
 									{isLoading ? 'Loading...' : 'Load More'}
 								</button>

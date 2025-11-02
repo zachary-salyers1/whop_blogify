@@ -24,9 +24,16 @@ export interface AuthContext {
 export async function getAuthUser(): Promise<AuthContext | null> {
   const headersList = await headers()
 
-  const userId = headersList.get('x-whop-user-id')
-  const companyId = headersList.get('x-whop-company-id')
-  const experienceId = headersList.get('x-whop-experience-id')
+  let userId = headersList.get('x-whop-user-id')
+  let companyId = headersList.get('x-whop-company-id')
+  let experienceId = headersList.get('x-whop-experience-id')
+
+  // Development fallback - use environment variables
+  if (!userId && process.env.NODE_ENV === 'development') {
+    userId = process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID || 'dev_user_1'
+    companyId = process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
+    experienceId = companyId
+  }
 
   if (!userId || !companyId || !experienceId) {
     return null
@@ -41,13 +48,32 @@ export async function getAuthUser(): Promise<AuthContext | null> {
     // Create user if doesn't exist (will be populated by webhook or API call later)
     user = await prisma.user.create({
       data: {
-        id: userId
+        id: userId,
+        username: 'user_' + userId.slice(-6),
+        name: 'Test User',
+        email: `user_${userId.slice(-6)}@example.com`
+      }
+    })
+  }
+
+  // Ensure company exists
+  let company = await prisma.company.findUnique({
+    where: { id: companyId }
+  })
+
+  if (!company) {
+    company = await prisma.company.create({
+      data: {
+        id: companyId,
+        name: 'Development Company',
+        experienceId,
+        isActive: true
       }
     })
   }
 
   // Check if user has access to this company
-  const userCompany = await prisma.userCompany.findUnique({
+  let userCompany = await prisma.userCompany.findUnique({
     where: {
       unique_user_company: {
         userId,
@@ -55,6 +81,18 @@ export async function getAuthUser(): Promise<AuthContext | null> {
       }
     }
   })
+
+  // In development, auto-grant access
+  if (!userCompany && process.env.NODE_ENV === 'development') {
+    userCompany = await prisma.userCompany.create({
+      data: {
+        userId,
+        companyId,
+        hasAccess: true,
+        role: 'admin'
+      }
+    })
+  }
 
   const hasAccess = userCompany?.hasAccess ?? false
   const isAdmin = userCompany?.role === 'admin' || userCompany?.role === 'owner'

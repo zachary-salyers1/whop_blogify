@@ -49,31 +49,31 @@ export function CreatePostForm({ onPostCreated }: CreatePostFormProps) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+    <div className="bg-gray-50 rounded-lg shadow-md border-2 border-gray-300 p-6 mb-6">
       <form onSubmit={handleSubmit}>
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="What's on your mind?"
-          className="w-full min-h-[120px] p-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full min-h-[120px] p-3 border-2 border-gray-400 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black font-medium bg-white placeholder-gray-500"
           disabled={isLoading}
           maxLength={5000}
         />
 
         {error && (
-          <div className="mt-2 text-sm text-red-600">
+          <div className="mt-2 text-sm text-red-700 font-bold">
             {error}
           </div>
         )}
 
         <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-black font-bold">
             {content.length} / 5000
           </div>
           <button
             type="submit"
             disabled={isLoading || !content.trim()}
-            className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? 'Posting...' : 'Post'}
           </button>
