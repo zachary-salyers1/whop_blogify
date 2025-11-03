@@ -33,12 +33,25 @@ export async function getAuthUser(): Promise<AuthContext | null> {
   const whopAppId = headersList.get('x-whop-app-id')
   const whopCompanyId = headersList.get('x-whop-company-id')
   const whopExperienceId = headersList.get('x-whop-experience-id')
+  const referer = headersList.get('referer')
+
+  // Extract experience ID from referer URL if present
+  // Pattern: https://whop.com/joined/{slug}/exp_{id}/app/
+  let experienceFromUrl: string | null = null
+  if (referer) {
+    const expMatch = referer.match(/\/exp_([a-zA-Z0-9]+)\//)
+    if (expMatch) {
+      experienceFromUrl = `exp_${expMatch[1]}`
+    }
+  }
 
   console.log('[AUTH] Whop headers:', {
     whopUserToken: whopUserToken ? 'present' : 'missing',
     whopAppId,
     whopCompanyId,
     whopExperienceId,
+    referer,
+    experienceFromUrl,
     allHeaders: Object.fromEntries(Array.from(headersList.entries()).filter(([k]) => k.startsWith('x-whop')))
   })
 
@@ -52,11 +65,13 @@ export async function getAuthUser(): Promise<AuthContext | null> {
 
         userId = payload.sub // subject is the user ID
 
-        // Try to get company/experience from headers first, then fallback to JWT, then env
-        companyId = whopCompanyId || payload.company_id || payload.cid || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
-        experienceId = whopExperienceId || payload.experience_id || payload.eid || companyId
+        // Try to get experience from URL first (most reliable), then headers, then JWT, then env
+        experienceId = experienceFromUrl || whopExperienceId || payload.experience_id || payload.eid || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
 
-        console.log('[AUTH] Extracted from JWT:', { userId, companyId, experienceId, jwtFields: Object.keys(payload) })
+        // For now, use experience ID as company ID (we'll look up the actual company from the experience)
+        companyId = experienceId
+
+        console.log('[AUTH] Extracted from JWT:', { userId, companyId, experienceId, source: experienceFromUrl ? 'url' : 'fallback', jwtFields: Object.keys(payload) })
       }
     } catch (error) {
       console.error('[AUTH] Failed to decode JWT:', error)
