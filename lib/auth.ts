@@ -35,6 +35,9 @@ export async function getAuthUser(): Promise<AuthContext | null> {
   const whopExperienceId = headersList.get('x-whop-experience-id')
   const referer = headersList.get('referer')
 
+  // Check for custom header from client (SDK getTopLevelUrlData)
+  const clientExperienceId = headersList.get('x-whop-experience-id')
+
   // Extract experience ID from referer URL if present
   // Pattern: https://whop.com/joined/{slug}/exp_{id}/app/
   let experienceFromUrl: string | null = null
@@ -50,6 +53,7 @@ export async function getAuthUser(): Promise<AuthContext | null> {
     whopAppId,
     whopCompanyId,
     whopExperienceId,
+    clientExperienceId,
     referer,
     experienceFromUrl,
     allHeaders: Object.fromEntries(Array.from(headersList.entries()).filter(([k]) => k.startsWith('x-whop')))
@@ -65,13 +69,14 @@ export async function getAuthUser(): Promise<AuthContext | null> {
 
         userId = payload.sub // subject is the user ID
 
-        // Try to get experience from URL first (most reliable), then headers, then JWT, then env
-        experienceId = experienceFromUrl || whopExperienceId || payload.experience_id || payload.eid || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
+        // Priority: client header (SDK) > URL > Whop headers > JWT > env fallback
+        experienceId = clientExperienceId || experienceFromUrl || whopExperienceId || payload.experience_id || payload.eid || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
 
         // For now, use experience ID as company ID (we'll look up the actual company from the experience)
         companyId = experienceId
 
-        console.log('[AUTH] Extracted from JWT:', { userId, companyId, experienceId, source: experienceFromUrl ? 'url' : 'fallback', jwtFields: Object.keys(payload) })
+        const source = clientExperienceId ? 'client-header' : experienceFromUrl ? 'url' : whopExperienceId ? 'whop-header' : 'fallback'
+        console.log('[AUTH] Extracted from JWT:', { userId, companyId, experienceId, source, jwtFields: Object.keys(payload) })
       }
     } catch (error) {
       console.error('[AUTH] Failed to decode JWT:', error)
@@ -109,12 +114,20 @@ export async function getAuthUser(): Promise<AuthContext | null> {
     })
   }
 
-  // Ensure company exists
-  let company = await prisma.company.findUnique({
-    where: { id: companyId }
+  // Ensure company exists - look up by experience ID first
+  let company = await prisma.company.findFirst({
+    where: { experienceId }
   })
 
   if (!company) {
+    // Company not found by experience ID, check by company ID
+    company = await prisma.company.findUnique({
+      where: { id: companyId }
+    })
+  }
+
+  if (!company) {
+    // Create company if it doesn't exist (will be updated by webhooks)
     company = await prisma.company.create({
       data: {
         id: companyId,
@@ -124,6 +137,9 @@ export async function getAuthUser(): Promise<AuthContext | null> {
       }
     })
   }
+
+  // Update companyId to match the actual company from the experience
+  companyId = company.id
 
   // Check if user has access to this company
   let userCompany = await prisma.userCompany.findUnique({

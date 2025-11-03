@@ -63,26 +63,25 @@ function FeedContent() {
 		console.log('[CLIENT] Whop SDK context:', whopSdk)
 		if (whopSdk) {
 			console.log('[CLIENT] SDK keys:', Object.keys(whopSdk))
-			console.log('[CLIENT] Full SDK object:', JSON.stringify(whopSdk, null, 2))
-		}
 
-		// Try to get parent window location (if iframe)
-		try {
-			if (window.parent && window.parent !== window) {
-				console.log('[CLIENT] Parent window location:', {
-					href: window.parent.location.href,
-					pathname: window.parent.location.pathname
-				})
+			// Call getTopLevelUrlData to get parent URL with experience ID
+			whopSdk.getTopLevelUrlData().then((topLevelData) => {
+				console.log('[CLIENT] Top level URL data:', topLevelData)
 
-				// Extract experience ID from parent URL
-				const match = window.parent.location.pathname.match(/\/exp_([a-zA-Z0-9]+)\//)
-				if (match) {
-					const experienceId = `exp_${match[1]}`
-					console.log('[CLIENT] Extracted experience ID from parent:', experienceId)
+				if (topLevelData && topLevelData.href) {
+					// Extract experience ID from parent URL
+					const match = topLevelData.href.match(/\/exp_([a-zA-Z0-9]+)\//)
+					if (match) {
+						const experienceId = `exp_${match[1]}`
+						console.log('[CLIENT] Extracted experience ID from SDK:', experienceId)
+
+						// Store in localStorage to pass to API requests
+						localStorage.setItem('whop_experience_id', experienceId)
+					}
 				}
-			}
-		} catch (e) {
-			console.log('[CLIENT] Cannot access parent window (CORS/same-origin policy):', e instanceof Error ? e.message : String(e))
+			}).catch((err) => {
+				console.error('[CLIENT] Failed to get top level URL data:', err)
+			})
 		}
 	}, [searchParams, whopSdk])
 

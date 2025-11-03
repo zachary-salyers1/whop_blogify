@@ -92,10 +92,14 @@ export function CreatePostForm({ onPostCreated }: CreatePostFormProps) {
     setError('')
 
     try {
+      // Get experience ID from localStorage (set by SDK)
+      const experienceId = localStorage.getItem('whop_experience_id')
+
       const response = await fetch('/api/posts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(experienceId && { 'X-Whop-Experience-Id': experienceId })
         },
         body: JSON.stringify({
           content: content.trim(),
