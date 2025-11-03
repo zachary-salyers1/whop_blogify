@@ -8,14 +8,15 @@ import { requireAuth, requireAccess } from '@/lib/auth'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await requireAuth()
+    const { id } = await params
 
     const post = await prisma.post.findUnique({
       where: {
-        id: BigInt(params.id),
+        id: BigInt(id),
         isDeleted: false
       },
       include: {
@@ -107,14 +108,15 @@ export async function GET(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await requireAccess()
+    const { id } = await params
 
     const post = await prisma.post.findUnique({
       where: {
-        id: BigInt(params.id)
+        id: BigInt(id)
       }
     })
 
@@ -132,7 +134,7 @@ export async function DELETE(
 
     // Soft delete
     await prisma.post.update({
-      where: { id: BigInt(params.id) },
+      where: { id: BigInt(id) },
       data: {
         isDeleted: true,
         deletedAt: new Date()

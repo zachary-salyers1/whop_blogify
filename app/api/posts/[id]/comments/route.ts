@@ -14,15 +14,16 @@ const createCommentSchema = z.object({
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await requireAuth()
+    const { id } = await params
 
     // Check if post exists and user has access
     const post = await prisma.post.findUnique({
       where: {
-        id: BigInt(params.id),
+        id: BigInt(id),
         isDeleted: false
       }
     })
@@ -49,7 +50,7 @@ export async function GET(
     // Fetch comments
     const comments = await prisma.comment.findMany({
       where: {
-        postId: BigInt(params.id),
+        postId: BigInt(id),
         isDeleted: false
       },
       include: {
@@ -96,19 +97,20 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await requireAccess()
+    const { id } = await params
     const body = await request.json()
-    
+
     // Validate input
     const validated = createCommentSchema.parse(body)
 
     // Check if post exists
     const post = await prisma.post.findUnique({
       where: {
-        id: BigInt(params.id),
+        id: BigInt(id),
         isDeleted: false
       }
     })
@@ -135,7 +137,7 @@ export async function POST(
     // Create comment
     const comment = await prisma.comment.create({
       data: {
-        postId: BigInt(params.id),
+        postId: BigInt(id),
         userId: auth.user.id,
         content: validated.content
       },
@@ -154,7 +156,7 @@ export async function POST(
 
     // Update post comment count
     await prisma.post.update({
-      where: { id: BigInt(params.id) },
+      where: { id: BigInt(id) },
       data: {
         commentsCount: {
           increment: 1

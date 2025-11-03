@@ -8,14 +8,15 @@ import { requireAuth } from '@/lib/auth'
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await requireAuth()
+    const { id } = await params
 
     const comment = await prisma.comment.findUnique({
       where: {
-        id: BigInt(params.id)
+        id: BigInt(id)
       },
       include: {
         post: {
@@ -40,7 +41,7 @@ export async function DELETE(
 
     // Soft delete
     await prisma.comment.update({
-      where: { id: BigInt(params.id) },
+      where: { id: BigInt(id) },
       data: {
         isDeleted: true,
         deletedAt: new Date()
