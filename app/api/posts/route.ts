@@ -107,8 +107,7 @@ export async function GET(request: NextRequest) {
         media: {
           orderBy: {
             displayOrder: 'asc'
-          },
-          take: 1
+          }
         },
         likes: {
           where: {
@@ -149,14 +148,12 @@ export async function GET(request: NextRequest) {
         id: post.company.id,
         name: post.company.name
       },
-      firstImage: post.media[0]
-        ? {
-            url: post.media[0].url,
-            thumbnailUrl: post.media[0].thumbnailUrl,
-            width: post.media[0].width,
-            height: post.media[0].height
-          }
-        : null,
+      media: post.media.map((m) => ({
+        url: m.url,
+        thumbnailUrl: m.thumbnailUrl,
+        width: m.width,
+        height: m.height
+      })),
       isLikedByUser: post.likes.length > 0
     }))
 

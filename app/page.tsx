@@ -23,12 +23,17 @@ interface Post {
     id: string
     name: string
   }
-  firstImage?: {
+  media?: {
     url: string
     thumbnailUrl?: string
     width?: number
     height?: number
-  } | null
+  }[]
+}
+
+interface Community {
+	id: string
+	name: string
 }
 
 export default function Page() {
@@ -37,11 +42,28 @@ export default function Page() {
 	const [error, setError] = useState('')
 	const [page, setPage] = useState(1)
 	const [hasMore, setHasMore] = useState(true)
+	const [communities, setCommunities] = useState<Community[]>([])
+	const [selectedCommunity, setSelectedCommunity] = useState<string>('')
 
-	const fetchPosts = async (pageNum: number = 1) => {
+	const fetchCommunities = async () => {
+		try {
+			const response = await fetch('/api/user/communities')
+			if (response.ok) {
+				const data = await response.json()
+				setCommunities(data.data)
+			}
+		} catch (err) {
+			console.error('Failed to fetch communities:', err)
+		}
+	}
+
+	const fetchPosts = async (pageNum: number = 1, communityId?: string) => {
 		try {
 			setIsLoading(true)
-			const response = await fetch(`/api/posts?page=${pageNum}&limit=20`)
+			const url = communityId
+				? `/api/posts?page=${pageNum}&limit=20&companyId=${communityId}`
+				: `/api/posts?page=${pageNum}&limit=20`
+			const response = await fetch(url)
 
 			if (!response.ok) {
 				throw new Error('Failed to fetch posts')
@@ -64,8 +86,15 @@ export default function Page() {
 	}
 
 	useEffect(() => {
+		fetchCommunities()
 		fetchPosts(1)
 	}, [])
+
+	const handleCommunityChange = (communityId: string) => {
+		setSelectedCommunity(communityId)
+		setPage(1)
+		fetchPosts(1, communityId || undefined)
+	}
 
 	const handleLike = async (postId: string) => {
 		await fetch(`/api/posts/${postId}/like`, { method: 'POST' })
@@ -80,6 +109,14 @@ export default function Page() {
 		setPosts(prev => prev.filter(p => p.id !== postId))
 	}
 
+	const handlePin = async (postId: string) => {
+		const response = await fetch(`/api/posts/${postId}/pin`, { method: 'POST' })
+		if (response.ok) {
+			// Refresh to show new pin state and reorder
+			fetchPosts(page, selectedCommunity || undefined)
+		}
+	}
+
 	const handlePostCreated = () => {
 		fetchPosts(1)
 		setPage(1)
@@ -88,19 +125,41 @@ export default function Page() {
 	const loadMore = () => {
 		const nextPage = page + 1
 		setPage(nextPage)
-		fetchPosts(nextPage)
+		fetchPosts(nextPage, selectedCommunity || undefined)
 	}
 
 	return (
 		<div className="min-h-screen bg-white py-8 px-4 sm:px-6 lg:px-8">
 			<div className="max-w-2xl mx-auto">
 				<div className="mb-8">
-					<h1 className="text-3xl font-bold text-black mb-2">
-						Community Feed
-					</h1>
-					<p className="text-black">
-						Share updates and connect with your community
-					</p>
+					<div className="flex items-center justify-between mb-4">
+						<div>
+							<h1 className="text-3xl font-bold text-black mb-2">
+								Community Feed
+							</h1>
+							<p className="text-black">
+								Share updates and connect with your community
+							</p>
+						</div>
+					</div>
+
+					{/* Community Filter */}
+					{communities.length > 1 && (
+						<div className="mt-4">
+							<select
+								value={selectedCommunity}
+								onChange={(e) => handleCommunityChange(e.target.value)}
+								className="w-full sm:w-auto px-4 py-2 border-2 border-gray-400 rounded-lg text-black font-bold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+							>
+								<option value="">All Communities</option>
+								{communities.map((community) => (
+									<option key={community.id} value={community.id}>
+										{community.name}
+									</option>
+								))}
+							</select>
+						</div>
+					)}
 				</div>
 
 				<CreatePostForm onPostCreated={handlePostCreated} />
@@ -140,7 +199,9 @@ export default function Page() {
 									onLike={handleLike}
 									onUnlike={handleUnlike}
 									onDelete={handleDelete}
+									onPin={handlePin}
 									canDelete={true}
+									canPin={true}
 								/>
 							))}
 						</div>

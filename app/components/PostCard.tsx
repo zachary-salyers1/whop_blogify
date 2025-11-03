@@ -22,12 +22,12 @@ interface Post {
     id: string
     name: string
   }
-  firstImage?: {
+  media?: {
     url: string
     thumbnailUrl?: string
     width?: number
     height?: number
-  } | null
+  }[]
 }
 
 interface PostCardProps {
@@ -35,13 +35,16 @@ interface PostCardProps {
   onLike: (postId: string) => Promise<void>
   onUnlike: (postId: string) => Promise<void>
   onDelete?: (postId: string) => Promise<void>
+  onPin?: (postId: string) => Promise<void>
   canDelete?: boolean
+  canPin?: boolean
 }
 
-export function PostCard({ post, onLike, onUnlike, onDelete, canDelete }: PostCardProps) {
+export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, canPin }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(post.isLikedByUser)
   const [likesCount, setLikesCount] = useState(post.likesCount)
   const [isLoading, setIsLoading] = useState(false)
+  const [isPinned, setIsPinned] = useState(post.isPinned)
 
   const handleLike = async () => {
     if (isLoading) return
@@ -75,9 +78,22 @@ export function PostCard({ post, onLike, onUnlike, onDelete, canDelete }: PostCa
     }
   }
 
+  const handlePin = async () => {
+    if (!onPin || isLoading) return
+    setIsLoading(true)
+    try {
+      await onPin(post.id)
+      setIsPinned(!isPinned)
+    } catch (error) {
+      console.error('Error pinning post:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="bg-gray-50 rounded-lg shadow-md border-2 border-gray-300 p-6 hover:shadow-lg transition-shadow">
-      {post.isPinned && (
+      {isPinned && (
         <div className="flex items-center gap-2 mb-3 text-sm text-blue-700 font-bold">
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L11 4.323V3a1 1 0 011-1zm-5 8.274l-.818 2.552c-.25.78-.03 1.632.57 2.212.617.596 1.536.837 2.4.63L8 15v2a1 1 0 102 0v-2.153L9.152 15.668c.864.207 1.783-.034 2.4-.63.599-.58.82-1.432.57-2.212l-.818-2.552a1 1 0 00-1.896.634l.818 2.552a1 1 0 01-.285.525.989.989 0 01-.667.333.989.989 0 01-.667-.333 1 1 0 01-.285-.525l-.818-2.552a1 1 0 00-1.896-.634z" />
@@ -101,28 +117,48 @@ export function PostCard({ post, onLike, onUnlike, onDelete, canDelete }: PostCa
             {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
           </div>
         </div>
-        {canDelete && (
-          <button
-            onClick={handleDelete}
-            disabled={isLoading}
-            className="text-red-700 hover:text-red-800 text-sm font-bold disabled:opacity-50"
-          >
-            Delete
-          </button>
-        )}
+        <div className="flex gap-2">
+          {canPin && (
+            <button
+              onClick={handlePin}
+              disabled={isLoading}
+              className="text-blue-700 hover:text-blue-800 text-sm font-bold disabled:opacity-50"
+            >
+              {isPinned ? 'Unpin' : 'Pin'}
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={isLoading}
+              className="text-red-700 hover:text-red-800 text-sm font-bold disabled:opacity-50"
+            >
+              Delete
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mb-4">
         <p className="text-black font-medium text-base whitespace-pre-wrap break-words">{post.content}</p>
       </div>
 
-      {post.firstImage && (
-        <div className="mb-4 rounded-lg overflow-hidden">
-          <img
-            src={post.firstImage.thumbnailUrl || post.firstImage.url}
-            alt=""
-            className="w-full h-auto max-h-96 object-cover"
-          />
+      {post.media && post.media.length > 0 && (
+        <div className={`mb-4 grid gap-2 ${
+          post.media.length === 1 ? 'grid-cols-1' :
+          post.media.length === 2 ? 'grid-cols-2' :
+          post.media.length === 3 ? 'grid-cols-3' :
+          'grid-cols-2'
+        }`}>
+          {post.media.map((image, index) => (
+            <div key={index} className="rounded-lg overflow-hidden">
+              <img
+                src={image.thumbnailUrl || image.url}
+                alt=""
+                className="w-full h-full object-cover max-h-64"
+              />
+            </div>
+          ))}
         </div>
       )}
 
