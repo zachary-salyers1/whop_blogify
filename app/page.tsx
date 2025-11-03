@@ -106,8 +106,14 @@ export default function Page() {
 				<CreatePostForm onPostCreated={handlePostCreated} />
 
 				{error && (
-					<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-						{error}
+					<div className="bg-red-50 border-2 border-red-300 text-black px-6 py-4 rounded-lg mb-6">
+						<h3 className="font-black text-lg mb-2">⚠️ Error</h3>
+						<p className="font-bold">{error}</p>
+						{error.includes('Failed to fetch') && (
+							<p className="mt-3 text-sm font-bold">
+								💡 This app must be accessed through Whop. If you're seeing this error, please access the app from your Whop company dashboard where you installed Blogify.
+							</p>
+						)}
 					</div>
 				)}
 
