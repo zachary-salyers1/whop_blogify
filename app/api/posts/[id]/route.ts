@@ -125,12 +125,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
 
-    // Check if user is the author or an admin in the company
+    // Only the author can delete their own post
     const isAuthor = post.userId === auth.user.id
-    const isAdmin = auth.isAdmin && post.companyId === auth.companyId
 
-    if (!isAuthor && !isAdmin) {
-      return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
+    if (!isAuthor) {
+      return NextResponse.json({ error: 'Only the post author can delete this post' }, { status: 403 })
     }
 
     // Soft delete

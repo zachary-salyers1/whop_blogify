@@ -14,6 +14,8 @@ interface Post {
   commentsCount: number
   createdAt: string
   isLikedByUser: boolean
+  canDelete: boolean
+  canPin: boolean
   user: {
     id: string
     username: string
@@ -246,8 +248,8 @@ function FeedContent() {
 									onUnlike={handleUnlike}
 									onDelete={handleDelete}
 									onPin={handlePin}
-									canDelete={true}
-									canPin={true}
+									canDelete={post.canDelete}
+									canPin={post.canPin}
 								/>
 							))}
 						</div>

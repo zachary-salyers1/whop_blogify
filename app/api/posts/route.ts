@@ -156,7 +156,9 @@ export async function GET(request: NextRequest) {
         height: m.height,
         mediaType: m.mediaType
       })),
-      isLikedByUser: post.likes.length > 0
+      isLikedByUser: post.likes.length > 0,
+      canDelete: post.userId === auth.user.id,
+      canPin: auth.isAdmin && post.companyId === auth.companyId
     }))
 
     return NextResponse.json({
