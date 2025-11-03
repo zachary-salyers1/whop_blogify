@@ -57,6 +57,8 @@ export async function GET(request: NextRequest) {
         }
       })
 
+      console.log('[API] Sync response status:', response.status)
+
       if (response.ok) {
         const result = await response.json()
         console.log('[API] Current company membership response:', JSON.stringify(result, null, 2))
@@ -83,7 +85,12 @@ export async function GET(request: NextRequest) {
 
             console.log('[API] Synced company:', companyName)
           }
+        } else {
+          console.log('[API] No membership data in response')
         }
+      } else {
+        const errorText = await response.text()
+        console.error('[API] Failed to sync company, status:', response.status, errorText)
       }
     } catch (apiError) {
       console.error('[API] Failed to sync current company:', apiError)
