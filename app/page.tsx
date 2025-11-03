@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { PostCard } from './components/PostCard'
 import { CreatePostForm } from './components/CreatePostForm'
+import { useSearchParams } from 'next/navigation'
 
 interface Post {
   id: string
@@ -37,6 +38,7 @@ interface Community {
 }
 
 export default function Page() {
+	const searchParams = useSearchParams()
 	const [posts, setPosts] = useState<Post[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState('')
@@ -44,6 +46,17 @@ export default function Page() {
 	const [hasMore, setHasMore] = useState(true)
 	const [communities, setCommunities] = useState<Community[]>([])
 	const [selectedCommunity, setSelectedCommunity] = useState<string>('')
+
+	// Log all query parameters to see what Whop sends
+	useEffect(() => {
+		const params = Object.fromEntries(searchParams.entries())
+		console.log('[CLIENT] URL query parameters:', params)
+		console.log('[CLIENT] window.location:', {
+			href: window.location.href,
+			search: window.location.search,
+			pathname: window.location.pathname
+		})
+	}, [searchParams])
 
 	const fetchCommunities = async () => {
 		try {
