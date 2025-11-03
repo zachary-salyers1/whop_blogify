@@ -56,6 +56,25 @@ function FeedContent() {
 			search: window.location.search,
 			pathname: window.location.pathname
 		})
+
+		// Try to get parent window location (if iframe)
+		try {
+			if (window.parent && window.parent !== window) {
+				console.log('[CLIENT] Parent window location:', {
+					href: window.parent.location.href,
+					pathname: window.parent.location.pathname
+				})
+
+				// Extract experience ID from parent URL
+				const match = window.parent.location.pathname.match(/\/exp_([a-zA-Z0-9]+)\//)
+				if (match) {
+					const experienceId = `exp_${match[1]}`
+					console.log('[CLIENT] Extracted experience ID from parent:', experienceId)
+				}
+			}
+		} catch (e) {
+			console.log('[CLIENT] Cannot access parent window (CORS/same-origin policy):', e.message)
+		}
 	}, [searchParams])
 
 	const fetchCommunities = async () => {
