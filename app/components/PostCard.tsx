@@ -158,14 +158,15 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
       )}
 
       {/* Blog Content */}
-      <div className="mb-4 prose prose-slate max-w-none">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeSanitize]}
-          className="text-black font-medium text-base"
-        >
-          {post.content}
-        </ReactMarkdown>
+      <div className="mb-4">
+        <div className="prose prose-slate max-w-none text-black">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeSanitize]}
+          >
+            {post.content}
+          </ReactMarkdown>
+        </div>
       </div>
 
       {post.media && post.media.length > 0 && (
