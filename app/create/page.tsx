@@ -14,13 +14,25 @@ interface UploadedImage {
   altText?: string
 }
 
+interface UploadedVideo {
+  url: string
+  thumbnailUrl?: string
+  width?: number
+  height?: number
+  fileSize?: number
+  mimeType?: string
+  duration?: number
+}
+
 export default function CreateBlogPage() {
   const router = useRouter()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [images, setImages] = useState<UploadedImage[]>([])
+  const [videos, setVideos] = useState<UploadedVideo[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadingVideo, setUploadingVideo] = useState(false)
   const [error, setError] = useState('')
   const [isDraft, setIsDraft] = useState(false)
 
@@ -76,8 +88,57 @@ export default function CreateBlogPage() {
     disabled: uploadingImage || images.length >= 4
   })
 
+  const onVideoDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (videos.length >= 1) {
+      setError('Maximum 1 video per blog')
+      return
+    }
+
+    setUploadingVideo(true)
+    setError('')
+
+    try {
+      const file = acceptedFiles[0]
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/upload/video', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to upload video')
+      }
+
+      const uploadedVideo = await response.json()
+      setVideos([uploadedVideo])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload video')
+    } finally {
+      setUploadingVideo(false)
+    }
+  }, [videos.length])
+
+  const { getRootProps: getVideoRootProps, getInputProps: getVideoInputProps, isDragActive: isVideoDragActive } = useDropzone({
+    onDrop: onVideoDrop,
+    accept: {
+      'video/mp4': ['.mp4'],
+      'video/webm': ['.webm'],
+      'video/quicktime': ['.mov']
+    },
+    maxSize: 100 * 1024 * 1024, // 100MB
+    multiple: false,
+    disabled: uploadingVideo || videos.length >= 1
+  })
+
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const removeVideo = () => {
+    setVideos([])
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -109,8 +170,9 @@ export default function CreateBlogPage() {
         body: JSON.stringify({
           title: title.trim(),
           content: content.trim(),
-          contentType: images.length > 0 ? 'image' : 'text',
-          images: images.length > 0 ? images : undefined
+          contentType: videos.length > 0 ? 'video' : (images.length > 0 ? 'image' : 'text'),
+          images: images.length > 0 ? images : undefined,
+          videos: videos.length > 0 ? videos : undefined
         }),
       })
 
@@ -129,7 +191,7 @@ export default function CreateBlogPage() {
   }
 
   const handleCancel = () => {
-    if (title.trim() || content.trim() || images.length > 0) {
+    if (title.trim() || content.trim() || images.length > 0 || videos.length > 0) {
       if (confirm('Are you sure you want to discard this blog?')) {
         router.back()
       }
@@ -266,6 +328,63 @@ export default function CreateBlogPage() {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Video Upload Section */}
+          <div className="border-t-2 border-gray-200 pt-6">
+            <h3 className="text-lg font-black text-black mb-4">Video (Optional)</h3>
+
+            {videos.length < 1 && (
+              <div
+                {...getVideoRootProps()}
+                className={`p-8 border-2 border-dashed rounded-lg text-center cursor-pointer transition-all ${
+                  isVideoDragActive
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-gray-400 hover:border-purple-400 bg-gray-50'
+                } ${uploadingVideo ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <input {...getVideoInputProps()} />
+                <div className="flex flex-col items-center gap-3">
+                  <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  {uploadingVideo ? (
+                    <p className="text-black font-bold">Uploading video...</p>
+                  ) : isVideoDragActive ? (
+                    <p className="text-black font-bold">Drop video here</p>
+                  ) : (
+                    <>
+                      <p className="text-black font-bold text-lg">
+                        Click or drag to add a video
+                      </p>
+                      <p className="text-sm text-gray-700 font-medium">
+                        MP4, WEBM, MOV • Max 100MB
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Video Preview */}
+            {videos.length > 0 && (
+              <div className="mt-6">
+                <div className="relative group rounded-lg overflow-hidden border-2 border-gray-300">
+                  <video
+                    src={videos[0].url}
+                    controls
+                    className="w-full max-h-96 bg-black"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeVideo}
+                    className="absolute top-2 right-2 bg-red-600 text-white font-black rounded-full w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             )}
           </div>

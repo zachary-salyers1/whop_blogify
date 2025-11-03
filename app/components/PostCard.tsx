@@ -28,6 +28,7 @@ interface Post {
     thumbnailUrl?: string
     width?: number
     height?: number
+    mediaType?: string
   }[]
 }
 
@@ -165,13 +166,21 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
           post.media.length === 3 ? 'grid-cols-3' :
           'grid-cols-2'
         }`}>
-          {post.media.map((image, index) => (
+          {post.media.map((item, index) => (
             <div key={index} className="rounded-lg overflow-hidden">
-              <img
-                src={image.thumbnailUrl || image.url}
-                alt=""
-                className="w-full h-full object-cover max-h-64"
-              />
+              {item.mediaType === 'video' ? (
+                <video
+                  src={item.url}
+                  controls
+                  className="w-full h-full max-h-96 bg-black"
+                />
+              ) : (
+                <img
+                  src={item.thumbnailUrl || item.url}
+                  alt=""
+                  className="w-full h-full object-cover max-h-64"
+                />
+              )}
             </div>
           ))}
         </div>

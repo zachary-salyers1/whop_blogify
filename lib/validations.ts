@@ -4,7 +4,7 @@ import { z } from 'zod'
 export const createPostSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
   content: z.string().min(1, 'Post content is required').max(5000, 'Post content must be less than 5000 characters'),
-  contentType: z.enum(['text', 'image', 'link']).default('text'),
+  contentType: z.enum(['text', 'image', 'video', 'link']).default('text'),
   images: z.array(z.object({
     url: z.string().url(),
     thumbnailUrl: z.string().url().optional(),
@@ -13,7 +13,16 @@ export const createPostSchema = z.object({
     fileSize: z.number().optional(),
     mimeType: z.string().optional(),
     altText: z.string().max(500).optional()
-  })).max(4, 'Maximum 4 images per post').optional()
+  })).max(4, 'Maximum 4 images per post').optional(),
+  videos: z.array(z.object({
+    url: z.string().url(),
+    thumbnailUrl: z.string().url().optional(),
+    width: z.number().optional(),
+    height: z.number().optional(),
+    fileSize: z.number().optional(),
+    mimeType: z.string().optional(),
+    duration: z.number().optional()
+  })).max(1, 'Maximum 1 video per post').optional()
 })
 
 export const updatePostSchema = z.object({

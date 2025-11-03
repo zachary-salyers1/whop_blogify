@@ -153,7 +153,8 @@ export async function GET(request: NextRequest) {
         url: m.url,
         thumbnailUrl: m.thumbnailUrl,
         width: m.width,
-        height: m.height
+        height: m.height,
+        mediaType: m.mediaType
       })),
       isLikedByUser: post.likes.length > 0
     }))
@@ -211,6 +212,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Prepare media items (images and videos)
+    const mediaItems = []
+
+    if (validated.images && validated.images.length > 0) {
+      mediaItems.push(...validated.images.map((img, index) => ({
+        mediaType: 'image',
+        url: img.url,
+        thumbnailUrl: img.thumbnailUrl,
+        width: img.width,
+        height: img.height,
+        fileSize: img.fileSize,
+        mimeType: img.mimeType,
+        displayOrder: index,
+        altText: img.altText
+      })))
+    }
+
+    if (validated.videos && validated.videos.length > 0) {
+      mediaItems.push(...validated.videos.map((video, index) => ({
+        mediaType: 'video',
+        url: video.url,
+        thumbnailUrl: video.thumbnailUrl,
+        width: video.width,
+        height: video.height,
+        fileSize: video.fileSize,
+        mimeType: video.mimeType,
+        displayOrder: (validated.images?.length ?? 0) + index,
+        altText: undefined
+      })))
+    }
+
     // Create post
     const post = await prisma.post.create({
       data: {
@@ -220,20 +252,8 @@ export async function POST(request: NextRequest) {
         title: validated.title,
         content: validated.content,
         contentType: validated.contentType,
-        media: validated.images
-          ? {
-              create: validated.images.map((img, index) => ({
-                mediaType: 'image',
-                url: img.url,
-                thumbnailUrl: img.thumbnailUrl,
-                width: img.width,
-                height: img.height,
-                fileSize: img.fileSize,
-                mimeType: img.mimeType,
-                displayOrder: index,
-                altText: img.altText
-              }))
-            }
+        media: mediaItems.length > 0
+          ? { create: mediaItems }
           : undefined
       },
       include: {
