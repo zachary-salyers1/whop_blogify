@@ -152,21 +152,31 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
 
       {/* Blog Title */}
       {post.title && (
-        <h2 className="text-2xl font-black text-black mb-3">
-          {post.title}
-        </h2>
+        <a href={`/posts/${post.id}`}>
+          <h2 className="text-2xl font-black text-black mb-3 hover:text-blue-700 transition-colors cursor-pointer">
+            {post.title}
+          </h2>
+        </a>
       )}
 
-      {/* Blog Content */}
+      {/* Blog Content Preview */}
       <div className="mb-4">
-        <div className="prose prose-slate max-w-none text-black">
+        <div className="prose prose-slate max-w-none text-black line-clamp-3">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeSanitize]}
           >
-            {post.content}
+            {post.content.substring(0, 200)}
           </ReactMarkdown>
         </div>
+        {post.content.length > 200 && (
+          <a
+            href={`/posts/${post.id}`}
+            className="inline-block mt-2 text-blue-600 font-bold hover:text-blue-700 transition-colors"
+          >
+            Read more →
+          </a>
+        )}
       </div>
 
       {post.media && post.media.length > 0 && (

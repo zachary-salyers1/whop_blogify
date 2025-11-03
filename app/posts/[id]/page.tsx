@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { PostCard } from '@/app/components/PostCard'
 import { formatDistanceToNow } from 'date-fns'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeSanitize from 'rehype-sanitize'
 
 interface Comment {
   id: string
@@ -44,6 +46,7 @@ interface Post {
     thumbnailUrl?: string
     width?: number
     height?: number
+    mediaType?: string
   }[]
 }
 
@@ -56,6 +59,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [isLiking, setIsLiking] = useState(false)
 
   useEffect(() => {
     params.then(({ id }) => {
@@ -89,12 +93,38 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     }
   }
 
-  const handleLike = async (postId: string) => {
-    await fetch(`/api/posts/${postId}/like`, { method: 'POST' })
+  const handleLike = async () => {
+    if (!post || isLiking) return
+    setIsLiking(true)
+    try {
+      const response = await fetch(`/api/posts/${postId}/like`, { method: 'POST' })
+      if (response.ok) {
+        setPost({
+          ...post,
+          isLikedByUser: true,
+          likesCount: post.likesCount + 1
+        })
+      }
+    } finally {
+      setIsLiking(false)
+    }
   }
 
-  const handleUnlike = async (postId: string) => {
-    await fetch(`/api/posts/${postId}/like`, { method: 'DELETE' })
+  const handleUnlike = async () => {
+    if (!post || isLiking) return
+    setIsLiking(true)
+    try {
+      const response = await fetch(`/api/posts/${postId}/like`, { method: 'DELETE' })
+      if (response.ok) {
+        setPost({
+          ...post,
+          isLikedByUser: false,
+          likesCount: post.likesCount - 1
+        })
+      }
+    } finally {
+      setIsLiking(false)
+    }
   }
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -207,12 +237,97 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           Back to Feed
         </button>
 
-        {/* Post */}
-        <PostCard
-          post={post}
-          onLike={handleLike}
-          onUnlike={handleUnlike}
-        />
+        {/* Full Blog Post */}
+        <article className="bg-white border-2 border-gray-400 rounded-lg shadow-md p-6 mb-6">
+          {/* Post Header */}
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <img
+                src={post.user.profilePicUrl || '/default-avatar.png'}
+                alt={post.user.name}
+                className="w-12 h-12 rounded-full border-2 border-gray-400"
+              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-black">{post.user.name}</span>
+                  <span className="text-gray-700 font-medium">@{post.user.username}</span>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full border border-blue-300">
+                    {post.company.name}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-700 font-medium">
+                  {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Blog Title */}
+          {post.title && (
+            <h1 className="text-4xl font-black text-black mb-6">
+              {post.title}
+            </h1>
+          )}
+
+          {/* Blog Content - Full */}
+          <div className="mb-6">
+            <div className="prose prose-lg prose-slate max-w-none text-black">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeSanitize]}
+              >
+                {post.content}
+              </ReactMarkdown>
+            </div>
+          </div>
+
+          {/* Media */}
+          {post.media && post.media.length > 0 && (
+            <div className={`mb-6 grid gap-4 ${
+              post.media.length === 1 ? 'grid-cols-1' :
+              post.media.length === 2 ? 'grid-cols-2' :
+              'grid-cols-2'
+            }`}>
+              {post.media.map((item, index) => (
+                <div key={index} className="rounded-lg overflow-hidden border-2 border-gray-300">
+                  {item.mediaType === 'video' ? (
+                    <video
+                      src={item.url}
+                      controls
+                      className="w-full h-full bg-black"
+                    />
+                  ) : (
+                    <img
+                      src={item.thumbnailUrl || item.url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Post Actions */}
+          <div className="flex items-center gap-6 pt-4 border-t-2 border-gray-300">
+            <button
+              onClick={post.isLikedByUser ? handleUnlike : handleLike}
+              disabled={isLiking}
+              className="flex items-center gap-2 text-gray-700 hover:text-red-600 transition-colors disabled:opacity-50 font-bold"
+            >
+              <svg className={`w-6 h-6 ${post.isLikedByUser ? 'fill-red-600 text-red-600' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+              <span>{post.likesCount}</span>
+            </button>
+            <div className="flex items-center gap-2 text-gray-700 font-bold">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              <span>{post.commentsCount}</span>
+            </div>
+          </div>
+        </article>
 
         {/* Comments Section */}
         <div className="mt-6 bg-gray-50 rounded-lg border-2 border-gray-300 p-6">
