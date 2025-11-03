@@ -82,7 +82,7 @@ function FeedContent() {
 				}
 			}
 		} catch (e) {
-			console.log('[CLIENT] Cannot access parent window (CORS/same-origin policy):', e.message)
+			console.log('[CLIENT] Cannot access parent window (CORS/same-origin policy):', e instanceof Error ? e.message : String(e))
 		}
 	}, [searchParams, whopSdk])
 
