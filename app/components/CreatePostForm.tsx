@@ -18,6 +18,7 @@ interface UploadedImage {
 }
 
 export function CreatePostForm({ onPostCreated }: CreatePostFormProps) {
+  const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -83,6 +84,11 @@ export function CreatePostForm({ onPostCreated }: CreatePostFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!title.trim()) {
+      setError('Please add a title')
+      return
+    }
+
     if (!content.trim()) {
       setError('Please write something')
       return
@@ -102,6 +108,7 @@ export function CreatePostForm({ onPostCreated }: CreatePostFormProps) {
           ...(experienceId && { 'X-Whop-Experience-Id': experienceId })
         },
         body: JSON.stringify({
+          title: title.trim(),
           content: content.trim(),
           contentType: images.length > 0 ? 'image' : 'text',
           images: images.length > 0 ? images : undefined
@@ -113,6 +120,7 @@ export function CreatePostForm({ onPostCreated }: CreatePostFormProps) {
         throw new Error(data.error || 'Failed to create post')
       }
 
+      setTitle('')
       setContent('')
       setImages([])
       onPostCreated()
@@ -126,10 +134,19 @@ export function CreatePostForm({ onPostCreated }: CreatePostFormProps) {
   return (
     <div className="bg-gray-50 rounded-lg shadow-md border-2 border-gray-300 p-6 mb-6">
       <form onSubmit={handleSubmit}>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Blog Title"
+          className="w-full p-3 border-2 border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black font-bold text-lg bg-white placeholder-gray-500 mb-3"
+          disabled={isLoading}
+          maxLength={200}
+        />
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="What's on your mind?"
+          placeholder="Write your blog content..."
           className="w-full min-h-[120px] p-3 border-2 border-gray-400 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black font-medium bg-white placeholder-gray-500"
           disabled={isLoading}
           maxLength={5000}
@@ -191,11 +208,11 @@ export function CreatePostForm({ onPostCreated }: CreatePostFormProps) {
 
         <div className="mt-4 flex items-center justify-between">
           <div className="text-sm text-black font-bold">
-            {content.length} / 5000
+            Title: {title.length}/200 | Content: {content.length}/5000
           </div>
           <button
             type="submit"
-            disabled={isLoading || uploadingImage || !content.trim()}
+            disabled={isLoading || uploadingImage || !title.trim() || !content.trim()}
             className="px-6 py-3 bg-blue-600 text-white font-black text-base rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
           >
             {isLoading ? 'Posting...' : uploadingImage ? 'Uploading...' : 'Post'}

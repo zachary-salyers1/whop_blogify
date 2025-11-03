@@ -94,6 +94,7 @@ model Post {
   userId        String    @map("user_id")
   companyId     String    @map("company_id")
   experienceId  String    @map("experience_id")
+  title         String?   @db.VarChar(200) // Blog title (optional for backward compatibility)
   content       String    @db.Text
   contentType   String    @default("text") @map("content_type") // 'text', 'image', 'link'
   isPinned      Boolean   @default(false) @map("is_pinned")

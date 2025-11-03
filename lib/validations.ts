@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 // Post validations
 export const createPostSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
   content: z.string().min(1, 'Post content is required').max(5000, 'Post content must be less than 5000 characters'),
   contentType: z.enum(['text', 'image', 'link']).default('text'),
   images: z.array(z.object({

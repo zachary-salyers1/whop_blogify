@@ -132,6 +132,7 @@ export async function GET(request: NextRequest) {
 
     const data = posts.map((post) => ({
       id: post.uuid,
+      title: post.title,
       content: post.content,
       contentType: post.contentType,
       isPinned: post.isPinned,
@@ -216,6 +217,7 @@ export async function POST(request: NextRequest) {
         userId: auth.user.id,
         companyId: auth.companyId,
         experienceId: auth.experienceId,
+        title: validated.title,
         content: validated.content,
         contentType: validated.contentType,
         media: validated.images

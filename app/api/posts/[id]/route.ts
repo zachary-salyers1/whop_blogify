@@ -67,6 +67,7 @@ export async function GET(
     const response = {
       id: post.id.toString(),
       uuid: post.uuid,
+      title: post.title,
       content: post.content,
       contentType: post.contentType,
       isPinned: post.isPinned,
