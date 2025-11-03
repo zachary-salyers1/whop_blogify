@@ -219,7 +219,7 @@ export default function CreateBlogPage() {
           </div>
           <div className="flex items-center gap-3">
             <div className="text-sm text-gray-700 font-bold hidden sm:block">
-              {title.length}/200 · {content.length}/5000
+              {title.length}/200 · {content.length}/50000
             </div>
             <button
               onClick={handleSubmit}
@@ -263,13 +263,13 @@ export default function CreateBlogPage() {
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Write your blog content here... Share your thoughts, ideas, or stories with your community."
+              placeholder="Write your blog content here... Share your thoughts, ideas, or stories with your community. Supports Markdown formatting."
               className="w-full min-h-[400px] text-lg text-black placeholder-gray-400 border-none focus:outline-none focus:ring-0 p-0 resize-none font-medium leading-relaxed"
-              maxLength={5000}
+              maxLength={50000}
               disabled={isSubmitting}
             />
             <div className="mt-2 text-sm text-gray-600 font-bold">
-              {content.length}/5000 characters
+              {content.length}/50000 characters · Markdown supported
             </div>
           </div>
 

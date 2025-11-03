@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeSanitize from 'rehype-sanitize'
 
 interface Post {
   id: string
@@ -155,8 +158,14 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
       )}
 
       {/* Blog Content */}
-      <div className="mb-4">
-        <p className="text-black font-medium text-base whitespace-pre-wrap break-words">{post.content}</p>
+      <div className="mb-4 prose prose-slate max-w-none">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeSanitize]}
+          className="text-black font-medium text-base"
+        >
+          {post.content}
+        </ReactMarkdown>
       </div>
 
       {post.media && post.media.length > 0 && (

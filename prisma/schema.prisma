@@ -84,6 +84,24 @@ model UserCompany {
   @@map("user_companies")
 }
 
+model ProSubscription {
+  id                  BigInt    @id @default(autoincrement())
+  userId              String    @map("user_id")
+  whopMembershipId    String?   @map("whop_membership_id") // Whop membership ID from payin
+  status              String    @default("active") // 'active', 'canceled', 'expired'
+  currentPeriodStart  DateTime  @map("current_period_start")
+  currentPeriodEnd    DateTime  @map("current_period_end")
+  cancelAtPeriodEnd   Boolean   @default(false) @map("cancel_at_period_end")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  canceledAt          DateTime? @map("canceled_at")
+
+  @@index([userId, status])
+  @@index([whopMembershipId])
+  @@index([currentPeriodEnd])
+  @@map("pro_subscriptions")
+}
+
 // ============================================================================
 // POSTS & MEDIA
 // ============================================================================
