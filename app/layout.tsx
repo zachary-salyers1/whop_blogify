@@ -28,9 +28,7 @@ export default function RootLayout({
 			<body
 				className={`${geistSans.variable} ${geistMono.variable} antialiased`}
 			>
-				<WhopApp fallback={<div className="min-h-screen bg-white flex items-center justify-center"><p className="text-black font-bold">Loading...</p></div>}>
-					{children}
-				</WhopApp>
+				<WhopApp>{children}</WhopApp>
 			</body>
 		</html>
 	);
