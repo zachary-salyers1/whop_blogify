@@ -175,6 +175,15 @@ function FeedContent() {
 								Share updates and connect with your community
 							</p>
 						</div>
+						<a
+							href="/search"
+							className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors"
+						>
+							<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+								<path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+							</svg>
+							Search
+						</a>
 					</div>
 
 					{/* Community Filter */}
