@@ -24,18 +24,31 @@ export interface AuthContext {
 export async function getAuthUser(): Promise<AuthContext | null> {
   const headersList = await headers()
 
+  // Log all headers for debugging
+  const allHeaders: Record<string, string> = {}
+  headersList.forEach((value, key) => {
+    allHeaders[key] = value
+  })
+  console.log('[AUTH] All headers:', JSON.stringify(allHeaders, null, 2))
+
   let userId = headersList.get('x-whop-user-id')
   let companyId = headersList.get('x-whop-company-id')
   let experienceId = headersList.get('x-whop-experience-id')
 
+  console.log('[AUTH] Whop headers:', { userId, companyId, experienceId })
+
   // Development fallback - use environment variables
-  if (!userId && process.env.NODE_ENV === 'development') {
+  if (!userId) {
+    console.log('[AUTH] No userId found, checking for fallback')
+    // Always use env variables as fallback when headers are missing
     userId = process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID || 'dev_user_1'
     companyId = process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
     experienceId = companyId
+    console.log('[AUTH] Using fallback values:', { userId, companyId, experienceId })
   }
 
   if (!userId || !companyId || !experienceId) {
+    console.log('[AUTH] Missing required auth values, returning null')
     return null
   }
 
