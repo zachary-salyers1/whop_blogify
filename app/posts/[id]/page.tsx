@@ -9,6 +9,7 @@ interface Comment {
   id: string
   content: string
   createdAt: string
+  repliesCount: number
   user: {
     id: string
     username: string
@@ -45,8 +46,9 @@ interface Post {
   }[]
 }
 
-export default function PostDetailPage({ params }: { params: { id: string } }) {
+export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
+  const [postId, setPostId] = useState<string>('')
   const [post, setPost] = useState<Post | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
@@ -55,15 +57,18 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetchPostAndComments()
-  }, [params.id])
+    params.then(({ id }) => {
+      setPostId(id)
+      fetchPostAndComments(id)
+    })
+  }, [params])
 
-  const fetchPostAndComments = async () => {
+  const fetchPostAndComments = async (id: string) => {
     try {
       setIsLoading(true)
 
       // Fetch post
-      const postRes = await fetch(`/api/posts/${params.id}`)
+      const postRes = await fetch(`/api/posts/${id}`)
       if (!postRes.ok) {
         throw new Error('Post not found')
       }
@@ -71,7 +76,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
       setPost(postData)
 
       // Fetch comments
-      const commentsRes = await fetch(`/api/posts/${params.id}/comments`)
+      const commentsRes = await fetch(`/api/posts/${id}/comments`)
       if (commentsRes.ok) {
         const commentsData = await commentsRes.json()
         setComments(commentsData.data || [])
@@ -94,13 +99,13 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!newComment.trim()) return
+    if (!newComment.trim() || !postId) return
 
     setIsSubmitting(true)
     setError('')
 
     try {
-      const response = await fetch(`/api/posts/${params.id}/comments`, {
+      const response = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: newComment.trim() })
@@ -111,12 +116,28 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
       }
 
       setNewComment('')
-      await fetchPostAndComments() // Refresh
+      await fetchPostAndComments(postId) // Refresh
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to post comment')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleReply = async (parentId: string, content: string) => {
+    if (!postId) return
+
+    const response = await fetch(`/api/posts/${postId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, parentId })
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to post reply')
+    }
+
+    await fetchPostAndComments(postId) // Refresh
   }
 
   const handleDeleteComment = async (commentId: string) => {
@@ -131,7 +152,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
         throw new Error('Failed to delete comment')
       }
 
-      await fetchPostAndComments() // Refresh
+      await fetchPostAndComments(postId) // Refresh
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete comment')
     }
@@ -240,6 +261,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                   key={comment.id}
                   comment={comment}
                   onDelete={handleDeleteComment}
+                  onReply={handleReply}
                 />
               ))
             )}
@@ -250,7 +272,35 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
   )
 }
 
-function CommentCard({ comment, onDelete }: { comment: Comment; onDelete: (id: string) => void }) {
+function CommentCard({
+  comment,
+  onDelete,
+  onReply
+}: {
+  comment: Comment
+  onDelete: (id: string) => void
+  onReply: (parentId: string, content: string) => Promise<void>
+}) {
+  const [showReplyForm, setShowReplyForm] = useState(false)
+  const [replyContent, setReplyContent] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmitReply = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!replyContent.trim()) return
+
+    setIsSubmitting(true)
+    try {
+      await onReply(comment.id, replyContent.trim())
+      setReplyContent('')
+      setShowReplyForm(false)
+    } catch (error) {
+      console.error('Failed to post reply:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="bg-white border-2 border-gray-300 rounded-lg p-4">
       <div className="flex items-start gap-3">
@@ -268,16 +318,93 @@ function CommentCard({ comment, onDelete }: { comment: Comment; onDelete: (id: s
               {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
             </span>
           </div>
-          <p className="text-black font-medium text-sm whitespace-pre-wrap break-words">
+          <p className="text-black font-medium text-sm whitespace-pre-wrap break-words mb-2">
             {comment.content}
           </p>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-4 mt-2">
+            <button
+              onClick={() => setShowReplyForm(!showReplyForm)}
+              className="text-blue-600 hover:text-blue-700 text-xs font-bold"
+            >
+              {showReplyForm ? 'Cancel' : 'Reply'}
+            </button>
+            {comment.repliesCount > 0 && (
+              <span className="text-gray-600 text-xs font-bold">
+                {comment.repliesCount} {comment.repliesCount === 1 ? 'reply' : 'replies'}
+              </span>
+            )}
+            <button
+              onClick={() => onDelete(comment.id)}
+              className="text-gray-500 hover:text-red-600 text-xs font-bold ml-auto"
+            >
+              Delete
+            </button>
+          </div>
+
+          {/* Reply Form */}
+          {showReplyForm && (
+            <form onSubmit={handleSubmitReply} className="mt-3">
+              <textarea
+                value={replyContent}
+                onChange={(e) => setReplyContent(e.target.value)}
+                placeholder="Write a reply..."
+                className="w-full min-h-[80px] p-2 border-2 border-gray-400 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-black font-medium bg-white placeholder-gray-500 text-sm"
+                disabled={isSubmitting}
+                maxLength={2000}
+              />
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-black font-bold">
+                  {replyContent.length} / 2000
+                </span>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !replyContent.trim()}
+                  className="px-3 py-1 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? 'Posting...' : 'Reply'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Nested Replies */}
+          {comment.replies && comment.replies.length > 0 && (
+            <div className="mt-4 space-y-3 pl-4 border-l-2 border-gray-300">
+              {comment.replies.map((reply) => (
+                <div key={reply.id} className="bg-gray-50 border border-gray-300 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <img
+                      src={reply.user.profilePicUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.user.username}`}
+                      alt={reply.user.name}
+                      className="w-6 h-6 rounded-full"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-black text-black text-xs">{reply.user.name}</span>
+                        <span className="text-gray-600 font-bold text-xs">@{reply.user.username}</span>
+                        <span className="text-gray-600 font-medium text-xs">·</span>
+                        <span className="text-gray-600 font-medium text-xs">
+                          {formatDistanceToNow(new Date(reply.createdAt), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <p className="text-black font-medium text-xs whitespace-pre-wrap break-words">
+                        {reply.content}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => onDelete(reply.id)}
+                      className="text-gray-500 hover:text-red-600 text-xs font-bold"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <button
-          onClick={() => onDelete(comment.id)}
-          className="text-gray-500 hover:text-red-600 text-xs font-bold"
-        >
-          Delete
-        </button>
       </div>
     </div>
   )

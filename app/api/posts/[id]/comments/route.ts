@@ -47,10 +47,11 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Fetch comments
+    // Fetch top-level comments (those without a parent)
     const comments = await prisma.comment.findMany({
       where: {
         postId: BigInt(id),
+        parentCommentId: null, // Only top-level comments
         isDeleted: false
       },
       include: {
@@ -61,6 +62,25 @@ export async function GET(
             name: true,
             profilePicUrl: true,
             profilePicUrl64: true
+          }
+        },
+        replies: {
+          where: {
+            isDeleted: false
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                profilePicUrl: true,
+                profilePicUrl64: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'asc'
           }
         }
       },
@@ -73,12 +93,25 @@ export async function GET(
       id: comment.id.toString(),
       content: comment.content,
       createdAt: comment.createdAt.toISOString(),
+      repliesCount: comment.repliesCount,
       user: {
         id: comment.user.id,
         username: comment.user.username || 'unknown',
         name: comment.user.name || 'Unknown User',
         profilePicUrl: comment.user.profilePicUrl64 || comment.user.profilePicUrl || ''
-      }
+      },
+      replies: comment.replies.map(reply => ({
+        id: reply.id.toString(),
+        content: reply.content,
+        createdAt: reply.createdAt.toISOString(),
+        repliesCount: 0, // Second level replies don't have their own replies
+        user: {
+          id: reply.user.id,
+          username: reply.user.username || 'unknown',
+          name: reply.user.name || 'Unknown User',
+          profilePicUrl: reply.user.profilePicUrl64 || reply.user.profilePicUrl || ''
+        }
+      }))
     }))
 
     return NextResponse.json({ data: response })
@@ -134,12 +167,13 @@ export async function POST(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Create comment
+    // Create comment (or reply if parentId provided)
     const comment = await prisma.comment.create({
       data: {
         postId: BigInt(id),
         userId: auth.user.id,
-        content: validated.content
+        content: validated.content,
+        parentCommentId: validated.parentId ? BigInt(validated.parentId) : null
       },
       include: {
         user: {
@@ -153,6 +187,19 @@ export async function POST(
         }
       }
     })
+
+    // Update counts
+    if (validated.parentId) {
+      // Update parent comment reply count
+      await prisma.comment.update({
+        where: { id: BigInt(validated.parentId) },
+        data: {
+          repliesCount: {
+            increment: 1
+          }
+        }
+      })
+    }
 
     // Update post comment count
     await prisma.post.update({
