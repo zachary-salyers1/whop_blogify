@@ -5,6 +5,7 @@ import { formatDistanceToNow } from 'date-fns'
 
 interface Post {
   id: string
+  title?: string
   content: string
   contentType: string
   isPinned: boolean
@@ -145,6 +146,14 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
         </div>
       </div>
 
+      {/* Blog Title */}
+      {post.title && (
+        <h2 className="text-2xl font-black text-black mb-3">
+          {post.title}
+        </h2>
+      )}
+
+      {/* Blog Content */}
       <div className="mb-4">
         <p className="text-black font-medium text-base whitespace-pre-wrap break-words">{post.content}</p>
       </div>

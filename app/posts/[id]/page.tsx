@@ -21,6 +21,7 @@ interface Comment {
 
 interface Post {
   id: string
+  title?: string
   content: string
   contentType: string
   isPinned: boolean
