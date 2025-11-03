@@ -28,11 +28,19 @@ export async function getAuthUser(): Promise<AuthContext | null> {
   let companyId: string | null = null
   let experienceId: string | null = null
 
-  // Check for Whop JWT token
+  // Check for Whop headers
   const whopUserToken = headersList.get('x-whop-user-token')
   const whopAppId = headersList.get('x-whop-app-id')
+  const whopCompanyId = headersList.get('x-whop-company-id')
+  const whopExperienceId = headersList.get('x-whop-experience-id')
 
-  console.log('[AUTH] Whop headers:', { whopUserToken: whopUserToken ? 'present' : 'missing', whopAppId })
+  console.log('[AUTH] Whop headers:', {
+    whopUserToken: whopUserToken ? 'present' : 'missing',
+    whopAppId,
+    whopCompanyId,
+    whopExperienceId,
+    allHeaders: Object.fromEntries(Array.from(headersList.entries()).filter(([k]) => k.startsWith('x-whop')))
+  })
 
   if (whopUserToken) {
     try {
@@ -43,11 +51,12 @@ export async function getAuthUser(): Promise<AuthContext | null> {
         console.log('[AUTH] Decoded JWT payload:', payload)
 
         userId = payload.sub // subject is the user ID
-        // For now, use the app ID as company/experience until we get the actual company
-        companyId = process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
-        experienceId = companyId
 
-        console.log('[AUTH] Extracted from JWT:', { userId, companyId, experienceId })
+        // Try to get company/experience from headers first, then fallback to JWT, then env
+        companyId = whopCompanyId || payload.company_id || payload.cid || process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
+        experienceId = whopExperienceId || payload.experience_id || payload.eid || companyId
+
+        console.log('[AUTH] Extracted from JWT:', { userId, companyId, experienceId, jwtFields: Object.keys(payload) })
       }
     } catch (error) {
       console.error('[AUTH] Failed to decode JWT:', error)
