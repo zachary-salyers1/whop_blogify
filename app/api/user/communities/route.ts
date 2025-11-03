@@ -43,8 +43,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: communities })
     }
 
-    // Fetch user's memberships from Whop API
-    const response = await fetch(`https://api.whop.com/api/v5/me/memberships`, {
+    // Fetch user's memberships from Whop API (V1)
+    // Use the app API key to fetch memberships for this user
+    const response = await fetch(`https://api.whop.com/api/v1/memberships?user=${auth.user.id}&valid=true`, {
       headers: {
         'Authorization': `Bearer ${process.env.WHOP_API_KEY}`,
         'Content-Type': 'application/json'
@@ -52,34 +53,60 @@ export async function GET(request: NextRequest) {
     })
 
     if (!response.ok) {
-      throw new Error('Failed to fetch memberships from Whop')
+      const errorText = await response.text()
+      console.error('[API] Whop API error:', response.status, errorText)
+
+      // Fallback to database on API error
+      const userCompanies = await prisma.userCompany.findMany({
+        where: {
+          userId: auth.user.id,
+          hasAccess: true
+        },
+        include: {
+          company: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      })
+
+      const communities = userCompanies.map((uc) => ({
+        id: uc.company.id,
+        name: uc.company.name
+      }))
+
+      return NextResponse.json({ data: communities })
     }
 
-    const data = await response.json()
+    const memberships = await response.json()
+    console.log('[API] Whop memberships response:', JSON.stringify(memberships, null, 2))
 
     // Extract unique companies from memberships
     const companiesMap = new Map()
 
-    if (data.data && Array.isArray(data.data)) {
-      for (const membership of data.data) {
+    // V1 API returns array directly
+    if (Array.isArray(memberships)) {
+      for (const membership of memberships) {
         if (membership.valid && membership.company) {
-          companiesMap.set(membership.company.id, {
-            id: membership.company.id,
-            name: membership.company.name || membership.company.id
+          const companyId = membership.company
+
+          companiesMap.set(companyId, {
+            id: companyId,
+            name: companyId // V1 API doesn't return company name in membership object
           })
 
           // Ensure company exists in our database
           await prisma.company.upsert({
-            where: { id: membership.company.id },
+            where: { id: companyId },
             create: {
-              id: membership.company.id,
-              name: membership.company.name || membership.company.id,
-              experienceId: membership.company.id,
+              id: companyId,
+              name: companyId,
+              experienceId: companyId,
               isActive: true
             },
-            update: {
-              name: membership.company.name || membership.company.id
-            }
+            update: {}
           })
 
           // Ensure user has access record
@@ -87,12 +114,12 @@ export async function GET(request: NextRequest) {
             where: {
               unique_user_company: {
                 userId: auth.user.id,
-                companyId: membership.company.id
+                companyId: companyId
               }
             },
             create: {
               userId: auth.user.id,
-              companyId: membership.company.id,
+              companyId: companyId,
               membershipId: membership.id,
               hasAccess: true,
               role: 'member'
