@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useContext } from 'react'
 import { PostCard } from './components/PostCard'
 import { CreatePostForm } from './components/CreatePostForm'
 import { useSearchParams } from 'next/navigation'
+import { WhopIframeSdkContext } from '@whop/react/iframe'
 
 interface Post {
   id: string
@@ -39,6 +40,7 @@ interface Community {
 
 function FeedContent() {
 	const searchParams = useSearchParams()
+	const whopSdk = useContext(WhopIframeSdkContext)
 	const [posts, setPosts] = useState<Post[]>([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState('')
@@ -47,7 +49,7 @@ function FeedContent() {
 	const [communities, setCommunities] = useState<Community[]>([])
 	const [selectedCommunity, setSelectedCommunity] = useState<string>('')
 
-	// Log all query parameters to see what Whop sends
+	// Log all query parameters and SDK context
 	useEffect(() => {
 		const params = Object.fromEntries(searchParams.entries())
 		console.log('[CLIENT] URL query parameters:', params)
@@ -56,6 +58,13 @@ function FeedContent() {
 			search: window.location.search,
 			pathname: window.location.pathname
 		})
+
+		// Log Whop SDK context
+		console.log('[CLIENT] Whop SDK context:', whopSdk)
+		if (whopSdk) {
+			console.log('[CLIENT] SDK keys:', Object.keys(whopSdk))
+			console.log('[CLIENT] Full SDK object:', JSON.stringify(whopSdk, null, 2))
+		}
 
 		// Try to get parent window location (if iframe)
 		try {
@@ -75,7 +84,7 @@ function FeedContent() {
 		} catch (e) {
 			console.log('[CLIENT] Cannot access parent window (CORS/same-origin policy):', e.message)
 		}
-	}, [searchParams])
+	}, [searchParams, whopSdk])
 
 	const fetchCommunities = async () => {
 		try {
