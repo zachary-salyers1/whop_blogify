@@ -2,7 +2,6 @@
 
 import { useEffect, useState, Suspense, useContext } from 'react'
 import { PostCard } from './components/PostCard'
-import { CreatePostForm } from './components/CreatePostForm'
 import { useSearchParams } from 'next/navigation'
 import { WhopIframeSdkContext } from '@whop/react/iframe'
 
@@ -151,11 +150,6 @@ function FeedContent() {
 		}
 	}
 
-	const handlePostCreated = () => {
-		fetchPosts(1)
-		setPage(1)
-	}
-
 	const loadMore = () => {
 		const nextPage = page + 1
 		setPage(nextPage)
@@ -175,15 +169,26 @@ function FeedContent() {
 								Share updates and connect with your community
 							</p>
 						</div>
-						<a
-							href="/search"
-							className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors"
-						>
-							<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-								<path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-							</svg>
-							Search
-						</a>
+						<div className="flex items-center gap-3">
+							<a
+								href="/create"
+								className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors"
+							>
+								<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+									<path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+								</svg>
+								Write Blog
+							</a>
+							<a
+								href="/search"
+								className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors"
+							>
+								<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+									<path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+								</svg>
+								Search
+							</a>
+						</div>
 					</div>
 
 					{/* Community Filter */}
@@ -204,8 +209,6 @@ function FeedContent() {
 						</div>
 					)}
 				</div>
-
-				<CreatePostForm onPostCreated={handlePostCreated} />
 
 				{error && (
 					<div className="bg-red-50 border-2 border-red-300 text-black px-6 py-4 rounded-lg mb-6">
