@@ -109,9 +109,15 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
           className="w-10 h-10 rounded-full"
         />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-black text-black text-base">{post.user.name}</span>
             <span className="text-black font-bold text-sm">@{post.user.username}</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 border border-blue-300 rounded-full text-xs font-bold text-blue-800">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h6v4H7V5zm6 6H7v2h6v-2z" clipRule="evenodd" />
+              </svg>
+              {post.company.name}
+            </span>
           </div>
           <div className="text-sm text-black font-bold">
             {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
