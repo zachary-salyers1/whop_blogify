@@ -44,17 +44,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all memberships for this user across ALL companies
+    console.log('[API] Fetching memberships for user:', auth.user.id)
     try {
-      const response = await fetch(`https://api.whop.com/api/v1/memberships?user_ids=${auth.user.id}`, {
+      const apiUrl = `https://api.whop.com/api/v1/memberships?user_ids=${auth.user.id}`
+      console.log('[API] Request URL:', apiUrl)
+
+      const response = await fetch(apiUrl, {
         headers: {
           'Authorization': `Bearer ${process.env.WHOP_API_KEY}`,
           'Content-Type': 'application/json'
         }
       })
 
+      console.log('[API] Response status:', response.status)
+
       if (response.ok) {
         const result = await response.json()
         console.log('[API] Whop memberships response:', JSON.stringify(result, null, 2))
+        console.log('[API] Number of memberships found:', result.data?.length || 0)
 
         // Extract and store companies
         const companiesMap = new Map()
@@ -113,10 +120,15 @@ export async function GET(request: NextRequest) {
             data: Array.from(companiesMap.values())
           })
         }
+      } else {
+        const errorText = await response.text()
+        console.error('[API] Whop API error response:', response.status, errorText)
       }
     } catch (apiError) {
       console.error('[API] Whop API call failed, falling back to database:', apiError)
     }
+
+    console.log('[API] Falling back to database for communities')
 
     // Fallback: return all companies from database
     const userCompanies = await prisma.userCompany.findMany({
