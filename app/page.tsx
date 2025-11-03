@@ -144,14 +144,14 @@ export default function Page() {
 					</div>
 
 					{/* Community Filter */}
-					{communities.length > 1 && (
+					{communities.length > 0 && (
 						<div className="mt-4">
 							<select
 								value={selectedCommunity}
 								onChange={(e) => handleCommunityChange(e.target.value)}
 								className="w-full sm:w-auto px-4 py-2 border-2 border-gray-400 rounded-lg text-black font-bold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 							>
-								<option value="">All Communities</option>
+								{communities.length > 1 && <option value="">All Communities</option>}
 								{communities.map((community) => (
 									<option key={community.id} value={community.id}>
 										{community.name}

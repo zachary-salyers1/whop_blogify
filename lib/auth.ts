@@ -111,14 +111,15 @@ export async function getAuthUser(): Promise<AuthContext | null> {
     }
   })
 
-  // In development, auto-grant access
-  if (!userCompany && process.env.NODE_ENV === 'development') {
+  // Auto-grant access if user is authenticated (JWT or dev mode)
+  // In production, this will be verified by webhooks, but we need initial access
+  if (!userCompany) {
     userCompany = await prisma.userCompany.create({
       data: {
         userId,
         companyId,
         hasAccess: true,
-        role: 'admin'
+        role: 'member' // Default role, webhooks will update if admin
       }
     })
   }
