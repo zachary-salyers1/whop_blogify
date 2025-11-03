@@ -1,88 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAccess } from '@/lib/auth'
-
-interface RouteContext {
-  params: Promise<{ id: string }>
-}
+import { requireAuth } from '@/lib/auth'
 
 /**
- * DELETE /api/comments/[id]
- * Delete a comment (author or admin only)
+ * DELETE /api/comments/:id
+ * Delete a comment (soft delete)
  */
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const auth = await requireAccess()
-    const { id } = await context.params
+    const auth = await requireAuth()
 
     const comment = await prisma.comment.findUnique({
-      where: { uuid: id },
+      where: {
+        id: BigInt(params.id)
+      },
       include: {
         post: {
           select: {
-            id: true,
             companyId: true
           }
         }
       }
     })
 
-    if (!comment || comment.isDeleted) {
-      return NextResponse.json(
-        { error: 'Comment not found' },
-        { status: 404 }
-      )
+    if (!comment) {
+      return NextResponse.json({ error: 'Comment not found' }, { status: 404 })
     }
 
-    // Check permissions (author or admin can delete)
+    // Check if user is the comment author or an admin
     const isAuthor = comment.userId === auth.user.id
-    const canDelete = isAuthor || auth.isAdmin
+    const isAdmin = auth.isAdmin && comment.post.companyId === auth.companyId
 
-    if (!canDelete) {
-      return NextResponse.json(
-        { error: 'Not authorized to delete this comment' },
-        { status: 403 }
-      )
+    if (!isAuthor && !isAdmin) {
+      return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
     }
 
-    // Soft delete comment and update counts
-    await prisma.$transaction(async (tx) => {
-      await tx.comment.update({
-        where: { uuid: id },
-        data: {
-          isDeleted: true,
-          deletedAt: new Date()
-        }
-      })
+    // Soft delete
+    await prisma.comment.update({
+      where: { id: BigInt(params.id) },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date()
+      }
+    })
 
-      // Update post comment count
-      await tx.post.update({
-        where: { id: comment.postId },
-        data: {
-          commentsCount: {
-            decrement: 1
-          }
+    // Decrement post comment count
+    await prisma.post.update({
+      where: { id: comment.postId },
+      data: {
+        commentsCount: {
+          decrement: 1
         }
-      })
-
-      // Update parent comment reply count if this is a reply
-      if (comment.parentCommentId) {
-        await tx.comment.update({
-          where: { id: comment.parentCommentId },
-          data: {
-            repliesCount: {
-              decrement: 1
-            }
-          }
-        })
       }
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting comment:', error)
+    console.error('[API] Error deleting comment:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

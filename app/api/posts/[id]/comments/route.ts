@@ -1,54 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAccess } from '@/lib/auth'
-import { createCommentSchema } from '@/lib/validations'
+import { requireAuth, requireAccess } from '@/lib/auth'
+import { z } from 'zod'
 
-interface RouteContext {
-  params: Promise<{ id: string }>
-}
+const createCommentSchema = z.object({
+  content: z.string().min(1).max(2000),
+  parentId: z.string().optional() // For nested replies (future)
+})
 
 /**
- * GET /api/posts/[id]/comments
- * Get all comments for a post (with nested replies)
+ * GET /api/posts/:id/comments
+ * Get all comments for a post
  */
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const auth = await requireAccess()
-    const { id } = await context.params
+    const auth = await requireAuth()
 
+    // Check if post exists and user has access
     const post = await prisma.post.findUnique({
-      where: { uuid: id },
-      select: { id: true, companyId: true, isDeleted: true }
+      where: {
+        id: BigInt(params.id),
+        isDeleted: false
+      }
     })
 
-    if (!post || post.isDeleted) {
-      return NextResponse.json(
-        { error: 'Post not found' },
-        { status: 404 }
-      )
+    if (!post) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
 
-    // Verify access to company
-    const hasAccess = await prisma.userCompany.findFirst({
+    // Check access to post's company
+    const userCompany = await prisma.userCompany.findUnique({
       where: {
-        userId: auth.user.id,
-        companyId: post.companyId,
+        unique_user_company: {
+          userId: auth.user.id,
+          companyId: post.companyId
+        },
         hasAccess: true
       }
     })
 
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'No access to this post' },
-        { status: 403 }
-      )
+    if (!userCompany) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Get top-level comments
+    // Fetch comments
     const comments = await prisma.comment.findMany({
       where: {
-        postId: post.id,
-        parentCommentId: null,
+        postId: BigInt(params.id),
         isDeleted: false
       },
       include: {
@@ -57,25 +58,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
             id: true,
             username: true,
             name: true,
+            profilePicUrl: true,
             profilePicUrl64: true
-          }
-        },
-        replies: {
-          where: {
-            isDeleted: false
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                name: true,
-                profilePicUrl64: true
-              }
-            }
-          },
-          orderBy: {
-            createdAt: 'asc'
           }
         }
       },
@@ -84,173 +68,124 @@ export async function GET(request: NextRequest, context: RouteContext) {
       }
     })
 
-    const data = comments.map((comment) => ({
-      id: comment.uuid,
+    const response = comments.map(comment => ({
+      id: comment.id.toString(),
       content: comment.content,
       createdAt: comment.createdAt.toISOString(),
-      repliesCount: comment.repliesCount,
       user: {
         id: comment.user.id,
-        username: comment.user.username ?? 'Unknown',
-        name: comment.user.name ?? 'Unknown User',
-        profilePicUrl: comment.user.profilePicUrl64 ?? ''
-      },
-      replies: comment.replies.map((reply) => ({
-        id: reply.uuid,
-        content: reply.content,
-        createdAt: reply.createdAt.toISOString(),
-        user: {
-          id: reply.user.id,
-          username: reply.user.username ?? 'Unknown',
-          name: reply.user.name ?? 'Unknown User',
-          profilePicUrl: reply.user.profilePicUrl64 ?? ''
-        }
-      }))
+        username: comment.user.username || 'unknown',
+        name: comment.user.name || 'Unknown User',
+        profilePicUrl: comment.user.profilePicUrl64 || comment.user.profilePicUrl || ''
+      }
     }))
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data: response })
   } catch (error) {
-    console.error('Error fetching comments:', error)
+    console.error('[API] Error fetching comments:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
 }
 
 /**
- * POST /api/posts/[id]/comments
- * Create a comment on a post
+ * POST /api/posts/:id/comments
+ * Create a new comment on a post
  */
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const auth = await requireAccess()
-    const { id } = await context.params
     const body = await request.json()
-
+    
+    // Validate input
     const validated = createCommentSchema.parse(body)
 
+    // Check if post exists
     const post = await prisma.post.findUnique({
-      where: { uuid: id },
-      select: { id: true, companyId: true, isDeleted: true }
+      where: {
+        id: BigInt(params.id),
+        isDeleted: false
+      }
     })
 
-    if (!post || post.isDeleted) {
-      return NextResponse.json(
-        { error: 'Post not found' },
-        { status: 404 }
-      )
+    if (!post) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
 
-    // Verify access to company
-    const hasAccess = await prisma.userCompany.findFirst({
+    // Check access to post's company
+    const userCompany = await prisma.userCompany.findUnique({
       where: {
-        userId: auth.user.id,
-        companyId: post.companyId,
+        unique_user_company: {
+          userId: auth.user.id,
+          companyId: post.companyId
+        },
         hasAccess: true
       }
     })
 
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'No access to this post' },
-        { status: 403 }
-      )
+    if (!userCompany) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    let parentCommentDbId: bigint | null = null
-
-    // If replying to a comment, verify it exists
-    if (validated.parentCommentId) {
-      const parentComment = await prisma.comment.findUnique({
-        where: {
-          uuid: validated.parentCommentId
-        },
-        select: {
-          id: true,
-          parentCommentId: true
-        }
-      })
-
-      if (!parentComment) {
-        return NextResponse.json(
-          { error: 'Parent comment not found' },
-          { status: 404 }
-        )
-      }
-
-      // Don't allow replies to replies (max 2 levels)
-      if (parentComment.parentCommentId !== null) {
-        return NextResponse.json(
-          { error: 'Cannot reply to a reply' },
-          { status: 400 }
-        )
-      }
-
-      parentCommentDbId = parentComment.id
-    }
-
-    // Create comment and update counts
-    const comment = await prisma.$transaction(async (tx) => {
-      const newComment = await tx.comment.create({
-        data: {
-          postId: post.id,
-          userId: auth.user.id,
-          parentCommentId: parentCommentDbId,
-          content: validated.content
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-              profilePicUrl64: true
-            }
+    // Create comment
+    const comment = await prisma.comment.create({
+      data: {
+        postId: BigInt(params.id),
+        userId: auth.user.id,
+        content: validated.content
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            profilePicUrl: true,
+            profilePicUrl64: true
           }
         }
-      })
-
-      // Update post comment count
-      await tx.post.update({
-        where: { id: post.id },
-        data: {
-          commentsCount: {
-            increment: 1
-          }
-        }
-      })
-
-      // Update parent comment reply count if this is a reply
-      if (parentCommentDbId) {
-        await tx.comment.update({
-          where: { id: parentCommentDbId },
-          data: {
-            repliesCount: {
-              increment: 1
-            }
-          }
-        })
       }
-
-      return newComment
     })
 
-    return NextResponse.json({
-      id: comment.uuid,
+    // Update post comment count
+    await prisma.post.update({
+      where: { id: BigInt(params.id) },
+      data: {
+        commentsCount: {
+          increment: 1
+        }
+      }
+    })
+
+    const response = {
+      id: comment.id.toString(),
       content: comment.content,
       createdAt: comment.createdAt.toISOString(),
       user: {
         id: comment.user.id,
-        username: comment.user.username ?? 'Unknown',
-        name: comment.user.name ?? 'Unknown User',
-        profilePicUrl: comment.user.profilePicUrl64 ?? ''
+        username: comment.user.username || 'unknown',
+        name: comment.user.name || 'Unknown User',
+        profilePicUrl: comment.user.profilePicUrl64 || comment.user.profilePicUrl || ''
       }
-    }, { status: 201 })
+    }
+
+    return NextResponse.json(response, { status: 201 })
   } catch (error) {
-    console.error('Error creating comment:', error)
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('[API] Error creating comment:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
