@@ -43,24 +43,108 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: communities })
     }
 
-    // V1 API requires company parameter, so we can only get memberships for current company
-    // For multi-community support, we'd need to track this via webhooks
-    // For now, just return the current company
-    const currentCompany = await prisma.company.findUnique({
-      where: { id: auth.companyId },
-      select: {
-        id: true,
-        name: true
+    // Fetch all memberships for this user across ALL companies
+    try {
+      const response = await fetch(`https://api.whop.com/api/v1/memberships?user_ids=${auth.user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${process.env.WHOP_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('[API] Whop memberships response:', JSON.stringify(result, null, 2))
+
+        // Extract and store companies
+        const companiesMap = new Map()
+
+        if (result.data && Array.isArray(result.data)) {
+          for (const membership of result.data) {
+            // Check if membership is valid/active
+            if (membership.status === 'active' && membership.company) {
+              const companyId = membership.company.id
+              const companyName = membership.company.title || companyId
+
+              companiesMap.set(companyId, {
+                id: companyId,
+                name: companyName
+              })
+
+              // Store in database for caching
+              await prisma.company.upsert({
+                where: { id: companyId },
+                create: {
+                  id: companyId,
+                  name: companyName,
+                  experienceId: companyId,
+                  isActive: true
+                },
+                update: {
+                  name: companyName
+                }
+              })
+
+              await prisma.userCompany.upsert({
+                where: {
+                  unique_user_company: {
+                    userId: auth.user.id,
+                    companyId: companyId
+                  }
+                },
+                create: {
+                  userId: auth.user.id,
+                  companyId: companyId,
+                  membershipId: membership.id,
+                  hasAccess: true,
+                  role: 'member'
+                },
+                update: {
+                  hasAccess: true,
+                  membershipId: membership.id
+                }
+              })
+            }
+          }
+        }
+
+        if (companiesMap.size > 0) {
+          return NextResponse.json({
+            data: Array.from(companiesMap.values())
+          })
+        }
+      }
+    } catch (apiError) {
+      console.error('[API] Whop API call failed, falling back to database:', apiError)
+    }
+
+    // Fallback: return all companies from database
+    const userCompanies = await prisma.userCompany.findMany({
+      where: {
+        userId: auth.user.id,
+        hasAccess: true
+      },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        company: {
+          name: 'asc'
+        }
       }
     })
 
-    if (!currentCompany) {
-      return NextResponse.json({ data: [] })
-    }
+    const communities = userCompanies.map((uc) => ({
+      id: uc.company.id,
+      name: uc.company.name
+    }))
 
-    return NextResponse.json({
-      data: [currentCompany]
-    })
+    return NextResponse.json({ data: communities })
   } catch (error) {
     console.error('[API] Error fetching communities:', error)
     return NextResponse.json(
