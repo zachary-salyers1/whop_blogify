@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { PostCard } from './components/PostCard'
 import { CreatePostForm } from './components/CreatePostForm'
 import { useSearchParams } from 'next/navigation'
@@ -37,7 +37,7 @@ interface Community {
 	name: string
 }
 
-export default function Page() {
+function FeedContent() {
 	const searchParams = useSearchParams()
 	const [posts, setPosts] = useState<Post[]>([])
 	const [isLoading, setIsLoading] = useState(true)
@@ -234,5 +234,20 @@ export default function Page() {
 				)}
 			</div>
 		</div>
+	);
+}
+
+export default function Page() {
+	return (
+		<Suspense fallback={
+			<div className="min-h-screen bg-white py-8 px-4 flex items-center justify-center">
+				<div className="text-center">
+					<div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+					<p className="mt-4 text-black font-medium">Loading...</p>
+				</div>
+			</div>
+		}>
+			<FeedContent />
+		</Suspense>
 	);
 }
