@@ -16,8 +16,7 @@ export async function GET(
 
     const post = await prisma.post.findUnique({
       where: {
-        uuid: id,
-        isDeleted: false
+        uuid: id
       },
       include: {
         user: {
@@ -44,7 +43,7 @@ export async function GET(
       }
     })
 
-    if (!post) {
+    if (!post || post.isDeleted) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
 
