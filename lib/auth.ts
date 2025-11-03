@@ -24,23 +24,39 @@ export interface AuthContext {
 export async function getAuthUser(): Promise<AuthContext | null> {
   const headersList = await headers()
 
-  // Log all headers for debugging
-  const allHeaders: Record<string, string> = {}
-  headersList.forEach((value, key) => {
-    allHeaders[key] = value
-  })
-  console.log('[AUTH] All headers:', JSON.stringify(allHeaders, null, 2))
+  let userId: string | null = null
+  let companyId: string | null = null
+  let experienceId: string | null = null
 
-  let userId = headersList.get('x-whop-user-id')
-  let companyId = headersList.get('x-whop-company-id')
-  let experienceId = headersList.get('x-whop-experience-id')
+  // Check for Whop JWT token
+  const whopUserToken = headersList.get('x-whop-user-token')
+  const whopAppId = headersList.get('x-whop-app-id')
 
-  console.log('[AUTH] Whop headers:', { userId, companyId, experienceId })
+  console.log('[AUTH] Whop headers:', { whopUserToken: whopUserToken ? 'present' : 'missing', whopAppId })
 
-  // Development fallback - use environment variables
+  if (whopUserToken) {
+    try {
+      // Decode JWT (don't verify since we trust the header from Whop's proxy)
+      const parts = whopUserToken.split('.')
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString())
+        console.log('[AUTH] Decoded JWT payload:', payload)
+
+        userId = payload.sub // subject is the user ID
+        // For now, use the app ID as company/experience until we get the actual company
+        companyId = process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
+        experienceId = companyId
+
+        console.log('[AUTH] Extracted from JWT:', { userId, companyId, experienceId })
+      }
+    } catch (error) {
+      console.error('[AUTH] Failed to decode JWT:', error)
+    }
+  }
+
+  // Fallback to environment variables if no JWT
   if (!userId) {
-    console.log('[AUTH] No userId found, checking for fallback')
-    // Always use env variables as fallback when headers are missing
+    console.log('[AUTH] No JWT found, using env fallback')
     userId = process.env.NEXT_PUBLIC_WHOP_AGENT_USER_ID || 'dev_user_1'
     companyId = process.env.NEXT_PUBLIC_WHOP_COMPANY_ID || 'dev_company_1'
     experienceId = companyId
