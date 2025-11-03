@@ -16,7 +16,7 @@ export async function GET(
 
     const post = await prisma.post.findUnique({
       where: {
-        id: BigInt(id),
+        uuid: id,
         isDeleted: false
       },
       include: {
@@ -65,8 +65,7 @@ export async function GET(
 
     // Format response
     const response = {
-      id: post.id.toString(),
-      uuid: post.uuid,
+      id: post.uuid,
       title: post.title,
       content: post.content,
       contentType: post.contentType,
@@ -89,7 +88,8 @@ export async function GET(
         url: m.url,
         thumbnailUrl: m.thumbnailUrl,
         width: m.width,
-        height: m.height
+        height: m.height,
+        mediaType: m.mediaType
       }))
     }
 
@@ -117,7 +117,7 @@ export async function DELETE(
 
     const post = await prisma.post.findUnique({
       where: {
-        id: BigInt(id)
+        uuid: id
       }
     })
 
@@ -135,7 +135,7 @@ export async function DELETE(
 
     // Soft delete
     await prisma.post.update({
-      where: { id: BigInt(id) },
+      where: { uuid: id },
       data: {
         isDeleted: true,
         deletedAt: new Date()
