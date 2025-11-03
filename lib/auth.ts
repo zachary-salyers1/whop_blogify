@@ -119,15 +119,19 @@ export async function getAuthUser(): Promise<AuthContext | null> {
     where: { experienceId }
   })
 
+  console.log('[AUTH] Lookup by experienceId:', { experienceId, found: !!company, companyId: company?.id, companyName: company?.name })
+
   if (!company) {
     // Company not found by experience ID, check by company ID
     company = await prisma.company.findUnique({
       where: { id: companyId }
     })
+    console.log('[AUTH] Lookup by companyId:', { companyId, found: !!company, companyName: company?.name })
   }
 
   if (!company) {
     // Create company if it doesn't exist (will be updated by webhooks)
+    console.log('[AUTH] Creating new company:', { id: companyId, experienceId })
     company = await prisma.company.create({
       data: {
         id: companyId,
@@ -139,7 +143,9 @@ export async function getAuthUser(): Promise<AuthContext | null> {
   }
 
   // Update companyId to match the actual company from the experience
+  const originalCompanyId = companyId
   companyId = company.id
+  console.log('[AUTH] Final company mapping:', { originalCompanyId, finalCompanyId: companyId, companyName: company.name })
 
   // Check if user has access to this company
   let userCompany = await prisma.userCompany.findUnique({

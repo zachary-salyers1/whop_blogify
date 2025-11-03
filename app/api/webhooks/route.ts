@@ -135,9 +135,13 @@ async function handleMembershipActivated(data: any) {
 			isActive: true,
 		},
 		update: {
+			name: data.company?.name ?? undefined,
+			experienceId: data.experience_id ?? undefined,
 			isActive: true,
 		},
 	});
+
+	console.log(`Upserted company: ${companyId} (${data.company?.name}) with experience ${data.experience_id}`);
 
 	// Grant access
 	await prisma.userCompany.upsert({
