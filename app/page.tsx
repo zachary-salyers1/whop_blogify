@@ -65,19 +65,13 @@ function FeedContent() {
 			console.log('[CLIENT] SDK keys:', Object.keys(whopSdk))
 
 			// Call getTopLevelUrlData to get parent URL with experience ID
-			whopSdk.getTopLevelUrlData().then((topLevelData) => {
+			whopSdk.getTopLevelUrlData({}).then((topLevelData) => {
 				console.log('[CLIENT] Top level URL data:', topLevelData)
 
-				if (topLevelData && topLevelData.href) {
-					// Extract experience ID from parent URL
-					const match = topLevelData.href.match(/\/exp_([a-zA-Z0-9]+)\//)
-					if (match) {
-						const experienceId = `exp_${match[1]}`
-						console.log('[CLIENT] Extracted experience ID from SDK:', experienceId)
-
-						// Store in localStorage to pass to API requests
-						localStorage.setItem('whop_experience_id', experienceId)
-					}
+				// The response has experienceId directly, no need to parse URL
+				if (topLevelData && topLevelData.experienceId) {
+					console.log('[CLIENT] Experience ID from SDK:', topLevelData.experienceId)
+					localStorage.setItem('whop_experience_id', topLevelData.experienceId)
 				}
 			}).catch((err) => {
 				console.error('[CLIENT] Failed to get top level URL data:', err)
