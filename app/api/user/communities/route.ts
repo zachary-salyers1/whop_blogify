@@ -43,92 +43,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: communities })
     }
 
-    // Fetch all memberships for this user across ALL companies
-    console.log('[API] Fetching memberships for user:', auth.user.id)
-    try {
-      const apiUrl = `https://api.whop.com/api/v1/memberships?user_ids=${auth.user.id}`
-      console.log('[API] Request URL:', apiUrl)
+    // Whop V1 API requires company_id parameter (can't query across all companies)
+    // Solution: Use database tracking via webhooks + sync current company
 
-      const response = await fetch(apiUrl, {
+    console.log('[API] Syncing current company membership:', auth.companyId)
+
+    // Ensure current company is synced in database
+    try {
+      const response = await fetch(`https://api.whop.com/api/v1/memberships?user_ids=${auth.user.id}&company_id=${auth.companyId}`, {
         headers: {
           'Authorization': `Bearer ${process.env.WHOP_API_KEY}`,
           'Content-Type': 'application/json'
         }
       })
 
-      console.log('[API] Response status:', response.status)
-
       if (response.ok) {
         const result = await response.json()
-        console.log('[API] Whop memberships response:', JSON.stringify(result, null, 2))
-        console.log('[API] Number of memberships found:', result.data?.length || 0)
+        console.log('[API] Current company membership response:', JSON.stringify(result, null, 2))
 
-        // Extract and store companies
-        const companiesMap = new Map()
+        if (result.data && result.data.length > 0) {
+          const membership = result.data[0]
 
-        if (result.data && Array.isArray(result.data)) {
-          for (const membership of result.data) {
-            // Check if membership is valid/active
-            if (membership.status === 'active' && membership.company) {
-              const companyId = membership.company.id
-              const companyName = membership.company.title || companyId
+          if (membership.company) {
+            const companyName = membership.company.title || auth.companyId
 
-              companiesMap.set(companyId, {
-                id: companyId,
+            // Update current company in database
+            await prisma.company.upsert({
+              where: { id: auth.companyId },
+              create: {
+                id: auth.companyId,
+                name: companyName,
+                experienceId: auth.companyId,
+                isActive: true
+              },
+              update: {
                 name: companyName
-              })
+              }
+            })
 
-              // Store in database for caching
-              await prisma.company.upsert({
-                where: { id: companyId },
-                create: {
-                  id: companyId,
-                  name: companyName,
-                  experienceId: companyId,
-                  isActive: true
-                },
-                update: {
-                  name: companyName
-                }
-              })
-
-              await prisma.userCompany.upsert({
-                where: {
-                  unique_user_company: {
-                    userId: auth.user.id,
-                    companyId: companyId
-                  }
-                },
-                create: {
-                  userId: auth.user.id,
-                  companyId: companyId,
-                  membershipId: membership.id,
-                  hasAccess: true,
-                  role: 'member'
-                },
-                update: {
-                  hasAccess: true,
-                  membershipId: membership.id
-                }
-              })
-            }
+            console.log('[API] Synced company:', companyName)
           }
         }
-
-        if (companiesMap.size > 0) {
-          return NextResponse.json({
-            data: Array.from(companiesMap.values())
-          })
-        }
-      } else {
-        const errorText = await response.text()
-        console.error('[API] Whop API error response:', response.status, errorText)
       }
     } catch (apiError) {
-      console.error('[API] Whop API call failed, falling back to database:', apiError)
+      console.error('[API] Failed to sync current company:', apiError)
     }
 
-    console.log('[API] Falling back to database for communities')
+    console.log('[API] Returning all communities from database')
 
     // Fallback: return all companies from database
     const userCompanies = await prisma.userCompany.findMany({
