@@ -39,6 +39,12 @@ interface Community {
 	name: string
 }
 
+interface BrandingSettings {
+	appName: string
+	primaryColor: string
+	logoUrl: string | null
+}
+
 function FeedContent() {
 	const searchParams = useSearchParams()
 	const whopSdk = useContext(WhopIframeSdkContext)
@@ -49,6 +55,12 @@ function FeedContent() {
 	const [hasMore, setHasMore] = useState(true)
 	const [communities, setCommunities] = useState<Community[]>([])
 	const [selectedCommunity, setSelectedCommunity] = useState<string>('')
+	const [isPro, setIsPro] = useState(false)
+	const [branding, setBranding] = useState<BrandingSettings>({
+		appName: 'Community Feed',
+		primaryColor: '#3B82F6',
+		logoUrl: null
+	})
 
 	// Log all query parameters and SDK context
 	useEffect(() => {
@@ -86,9 +98,33 @@ function FeedContent() {
 			if (response.ok) {
 				const data = await response.json()
 				setCommunities(data.data)
+
+				// If there's only one community, auto-select it and fetch branding
+				if (data.data.length === 1) {
+					const firstCommunity = data.data[0]
+					setSelectedCommunity(firstCommunity.id)
+					fetchBranding(firstCommunity.id)
+				}
 			}
 		} catch (err) {
 			console.error('Failed to fetch communities:', err)
+		}
+	}
+
+	const fetchBranding = async (communityId: string) => {
+		try {
+			const response = await fetch(`/api/admin/settings/${communityId}`)
+			if (response.ok) {
+				const data = await response.json()
+				setBranding({
+					appName: data.data.appName,
+					primaryColor: data.data.primaryColor,
+					logoUrl: data.data.logoUrl
+				})
+			}
+		} catch (err) {
+			console.error('Failed to fetch branding:', err)
+			// Keep default branding on error
 		}
 	}
 
@@ -123,12 +159,78 @@ function FeedContent() {
 	useEffect(() => {
 		fetchCommunities()
 		fetchPosts(1)
-	}, [])
+		checkProStatus()
+
+		// Listen for branding updates from admin panel (cross-tab)
+		const handleBrandingUpdate = (e: StorageEvent) => {
+			if (e.key === 'branding_updated' && e.newValue) {
+				try {
+					const update = JSON.parse(e.newValue)
+					// Only update if it's for the currently selected community
+					if (update.companyId === selectedCommunity) {
+						setBranding(update.branding)
+					}
+				} catch (err) {
+					console.error('Error parsing branding update:', err)
+				}
+			}
+		}
+
+		// Check for branding updates when page becomes visible (same tab navigation)
+		const handleVisibilityChange = () => {
+			if (!document.hidden && selectedCommunity) {
+				const brandingUpdate = localStorage.getItem('branding_updated')
+				if (brandingUpdate) {
+					try {
+						const update = JSON.parse(brandingUpdate)
+						// Check if update is recent (within last 5 seconds) and for current community
+						if (update.companyId === selectedCommunity && (Date.now() - update.timestamp) < 5000) {
+							setBranding(update.branding)
+						}
+					} catch (err) {
+						console.error('Error checking branding update:', err)
+					}
+				}
+			}
+		}
+
+		window.addEventListener('storage', handleBrandingUpdate)
+		document.addEventListener('visibilitychange', handleVisibilityChange)
+
+		return () => {
+			window.removeEventListener('storage', handleBrandingUpdate)
+			document.removeEventListener('visibilitychange', handleVisibilityChange)
+		}
+	}, [selectedCommunity])
+
+	const checkProStatus = async () => {
+		try {
+			const response = await fetch('/api/pro/status')
+			if (response.ok) {
+				const data = await response.json()
+				setIsPro(data.isPro)
+			}
+		} catch (err) {
+			console.error('Error checking Pro status:', err)
+		}
+	}
 
 	const handleCommunityChange = (communityId: string) => {
 		setSelectedCommunity(communityId)
 		setPage(1)
 		fetchPosts(1, communityId || undefined)
+
+		// Fetch branding for the selected community
+		if (communityId) {
+			fetchBranding(communityId)
+		} else {
+			// Reset to default branding when "All Communities" is selected
+			setBranding({
+				appName: 'Community Feed',
+				primaryColor: '#3B82F6',
+				logoUrl: null
+			})
+		}
 	}
 
 	const handleLike = async (postId: string) => {
@@ -159,22 +261,61 @@ function FeedContent() {
 	}
 
 	return (
-		<div className="min-h-screen bg-white py-8 px-4 sm:px-6 lg:px-8">
+		<div className="min-h-screen bg-white py-8 px-4 sm:px-6 lg:px-8" style={{ '--brand-color': branding.primaryColor } as React.CSSProperties}>
 			<div className="max-w-2xl mx-auto">
+				{/* Logo Banner */}
+				{branding.logoUrl && (
+					<div className="mb-6 rounded-lg overflow-hidden">
+						<img
+							src={branding.logoUrl}
+							alt="Community Logo"
+							className="w-full h-32 object-cover"
+						/>
+					</div>
+				)}
+
 				<div className="mb-8">
 					<div className="flex items-center justify-between mb-4">
 						<div>
 							<h1 className="text-3xl font-bold text-black mb-2">
-								Community Feed
+								{branding.appName}
 							</h1>
 							<p className="text-black">
 								Share updates and connect with your community
 							</p>
 						</div>
 						<div className="flex items-center gap-3">
+							{!isPro && (
+								<a
+									href="/pro"
+									className="flex items-center gap-2 px-4 py-2 text-white font-bold rounded-lg transition-colors"
+									style={{ backgroundColor: branding.primaryColor }}
+									onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.9)'}
+									onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
+								>
+									<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+									</svg>
+									Upgrade to Pro
+								</a>
+							)}
+							{isPro && (
+								<div
+									className="flex items-center gap-2 px-4 py-2 text-white font-bold rounded-lg"
+									style={{ backgroundColor: branding.primaryColor }}
+								>
+									<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+									</svg>
+									Pro Member
+								</div>
+							)}
 							<a
 								href="/create"
-								className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors"
+								className="flex items-center gap-2 px-4 py-2 text-white font-bold rounded-lg transition-colors"
+								style={{ backgroundColor: branding.primaryColor }}
+								onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.9)'}
+								onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
 							>
 								<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
 									<path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -183,12 +324,28 @@ function FeedContent() {
 							</a>
 							<a
 								href="/search"
-								className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors"
+								className="flex items-center gap-2 px-4 py-2 text-white font-bold rounded-lg transition-colors"
+								style={{ backgroundColor: branding.primaryColor }}
+								onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.9)'}
+								onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
 							>
 								<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
 									<path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
 								</svg>
 								Search
+							</a>
+							<a
+								href="/admin"
+								className="flex items-center gap-2 px-4 py-2 text-white font-bold rounded-lg transition-colors"
+								style={{ backgroundColor: branding.primaryColor }}
+								onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.9)'}
+								onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
+							>
+								<svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+									<path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+									<path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+								</svg>
+								Admin
 							</a>
 						</div>
 					</div>
@@ -199,7 +356,12 @@ function FeedContent() {
 							<select
 								value={selectedCommunity}
 								onChange={(e) => handleCommunityChange(e.target.value)}
-								className="w-full sm:w-auto px-4 py-2 border-2 border-gray-400 rounded-lg text-black font-bold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+								className="w-full sm:w-auto px-4 py-2 border-2 rounded-lg text-black font-bold bg-white focus:outline-none focus:ring-2"
+								style={{
+									borderColor: branding.primaryColor,
+									// @ts-ignore - CSS custom property
+									'--tw-ring-color': branding.primaryColor
+								}}
 							>
 								{communities.length > 1 && <option value="">All Communities</option>}
 								{communities.map((community) => (
@@ -226,7 +388,7 @@ function FeedContent() {
 
 				{isLoading && posts.length === 0 ? (
 					<div className="text-center py-12">
-						<div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+						<div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: branding.primaryColor }}></div>
 						<p className="mt-4 text-black font-medium">Loading posts...</p>
 					</div>
 				) : posts.length === 0 ? (
@@ -250,6 +412,7 @@ function FeedContent() {
 									onPin={handlePin}
 									canDelete={post.canDelete}
 									canPin={post.canPin}
+									brandColor={branding.primaryColor}
 								/>
 							))}
 						</div>
@@ -259,7 +422,13 @@ function FeedContent() {
 								<button
 									onClick={loadMore}
 									disabled={isLoading}
-									className="px-6 py-3 bg-blue-600 border border-blue-700 text-white font-bold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+									className="px-6 py-3 text-white font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+									style={{
+										backgroundColor: branding.primaryColor,
+										borderColor: branding.primaryColor
+									}}
+									onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.9)'}
+									onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
 								>
 									{isLoading ? 'Loading...' : 'Load More'}
 								</button>
