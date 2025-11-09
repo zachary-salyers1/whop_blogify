@@ -30,7 +30,6 @@ async function fetchAndUpdateWhopUser(userId: string) {
       id: whopUser.id,
       username: whopUser.username,
       name: whopUser.name,
-      email: whopUser.email,
       hasProfilePic: !!whopUser.profilePictureUrl
     })
 
@@ -40,7 +39,6 @@ async function fetchAndUpdateWhopUser(userId: string) {
       update: {
         username: whopUser.username || undefined,
         name: whopUser.name || undefined,
-        email: whopUser.email || undefined,
         profilePicUrl: whopUser.profilePictureUrl || undefined,
         profilePicUrl32: whopUser.profilePictureUrl || undefined,
         profilePicUrl64: whopUser.profilePictureUrl || undefined,
@@ -51,7 +49,6 @@ async function fetchAndUpdateWhopUser(userId: string) {
         id: userId,
         username: whopUser.username || `user_${userId.slice(-6)}`,
         name: whopUser.name || 'Whop User',
-        email: whopUser.email || undefined,
         profilePicUrl: whopUser.profilePictureUrl || undefined,
         profilePicUrl32: whopUser.profilePictureUrl || undefined,
         profilePicUrl64: whopUser.profilePictureUrl || undefined,
