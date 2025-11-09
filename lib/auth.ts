@@ -24,7 +24,7 @@ export interface AuthContext {
 async function fetchAndUpdateWhopUser(userId: string) {
   try {
     // Fetch user data from Whop
-    const whopUser = await whopSdk.getUser({ id: userId })
+    const whopUser = await whopSdk.users.getUser({ userId: userId })
 
     console.log('[AUTH] Fetched Whop user data:', {
       id: whopUser.id,

@@ -14,7 +14,7 @@ const validateWebhook = makeWebhookValidator({
 async function fetchAndUpdateWhopUser(userId: string) {
 	try {
 		console.log('[WEBHOOK] Fetching user data from Whop for:', userId);
-		const whopUser = await whopSdk.getUser({ id: userId });
+		const whopUser = await whopSdk.users.getUser({ userId: userId });
 
 		console.log('[WEBHOOK] Fetched Whop user:', {
 			id: whopUser.id,
