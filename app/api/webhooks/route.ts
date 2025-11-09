@@ -2,10 +2,63 @@ import { waitUntil } from "@vercel/functions";
 import { makeWebhookValidator } from "@whop/api";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { whopSdk } from "@/lib/whop-sdk";
 
 const validateWebhook = makeWebhookValidator({
 	webhookSecret: process.env.WHOP_WEBHOOK_SECRET ?? "fallback",
 });
+
+/**
+ * Fetch complete user data from Whop API and update database
+ */
+async function fetchAndUpdateWhopUser(userId: string) {
+	try {
+		console.log('[WEBHOOK] Fetching user data from Whop for:', userId);
+		const whopUser = await whopSdk.users.retrieve({ id: userId });
+
+		console.log('[WEBHOOK] Fetched Whop user:', {
+			id: whopUser.id,
+			username: whopUser.username,
+			name: whopUser.name,
+			email: whopUser.email,
+			hasProfilePic: !!whopUser.profile_pic_url
+		});
+
+		// Upsert user with complete Whop data
+		return await prisma.user.upsert({
+			where: { id: userId },
+			update: {
+				username: whopUser.username || undefined,
+				name: whopUser.name || undefined,
+				email: whopUser.email || undefined,
+				profilePicUrl: whopUser.profile_pic_url || undefined,
+				profilePicUrl32: whopUser.profile_pic_url || undefined,
+				profilePicUrl64: whopUser.profile_pic_url || undefined,
+				profilePicUrl128: whopUser.profile_pic_url || undefined,
+				updatedAt: new Date()
+			},
+			create: {
+				id: userId,
+				username: whopUser.username || `user_${userId.slice(-6)}`,
+				name: whopUser.name || 'Whop User',
+				email: whopUser.email || undefined,
+				profilePicUrl: whopUser.profile_pic_url || undefined,
+				profilePicUrl32: whopUser.profile_pic_url || undefined,
+				profilePicUrl64: whopUser.profile_pic_url || undefined,
+				profilePicUrl128: whopUser.profile_pic_url || undefined
+			}
+		});
+	} catch (error) {
+		console.error('[WEBHOOK] Failed to fetch Whop user data:', error);
+
+		// Fallback: create/update with basic data
+		return await prisma.user.upsert({
+			where: { id: userId },
+			create: { id: userId },
+			update: {}
+		});
+	}
+}
 
 export async function POST(request: NextRequest): Promise<Response> {
 	try {
@@ -88,15 +141,9 @@ async function handlePaymentSucceeded(data: any) {
 
 	console.log(`Payment succeeded for user ${userId} in company ${companyId}`);
 
-	// Create or update user
+	// Fetch and update complete user data from Whop
 	if (userId) {
-		await prisma.user.upsert({
-			where: { id: userId },
-			create: {
-				id: userId,
-			},
-			update: {},
-		});
+		await fetchAndUpdateWhopUser(userId);
 	}
 }
 
@@ -111,19 +158,8 @@ async function handleMembershipActivated(data: any) {
 		return;
 	}
 
-	// Create or update user
-	await prisma.user.upsert({
-		where: { id: userId },
-		create: {
-			id: userId,
-			email: data.user?.email,
-			username: data.user?.username,
-		},
-		update: {
-			email: data.user?.email,
-			username: data.user?.username,
-		},
-	});
+	// Fetch and update complete user data from Whop
+	await fetchAndUpdateWhopUser(userId);
 
 	// Create or update company
 	await prisma.company.upsert({

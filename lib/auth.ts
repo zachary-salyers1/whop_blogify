@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { prisma } from './prisma'
+import { whopSdk } from './whop-sdk'
 
 export interface AuthUser {
   id: string
@@ -15,6 +16,77 @@ export interface AuthContext {
   experienceId: string
   hasAccess: boolean
   isAdmin: boolean
+}
+
+/**
+ * Fetch user data from Whop API and update local database
+ */
+async function fetchAndUpdateWhopUser(userId: string) {
+  try {
+    // Fetch user data from Whop
+    const whopUser = await whopSdk.users.retrieve({ id: userId })
+
+    console.log('[AUTH] Fetched Whop user data:', {
+      id: whopUser.id,
+      username: whopUser.username,
+      name: whopUser.name,
+      email: whopUser.email,
+      hasProfilePic: !!whopUser.profile_pic_url
+    })
+
+    // Update or create user with real Whop data
+    const user = await prisma.user.upsert({
+      where: { id: userId },
+      update: {
+        username: whopUser.username || undefined,
+        name: whopUser.name || undefined,
+        email: whopUser.email || undefined,
+        profilePicUrl: whopUser.profile_pic_url || undefined,
+        profilePicUrl32: whopUser.profile_pic_url || undefined,
+        profilePicUrl64: whopUser.profile_pic_url || undefined,
+        profilePicUrl128: whopUser.profile_pic_url || undefined,
+        updatedAt: new Date()
+      },
+      create: {
+        id: userId,
+        username: whopUser.username || `user_${userId.slice(-6)}`,
+        name: whopUser.name || 'Whop User',
+        email: whopUser.email || undefined,
+        profilePicUrl: whopUser.profile_pic_url || undefined,
+        profilePicUrl32: whopUser.profile_pic_url || undefined,
+        profilePicUrl64: whopUser.profile_pic_url || undefined,
+        profilePicUrl128: whopUser.profile_pic_url || undefined
+      }
+    })
+
+    console.log('[AUTH] User upserted successfully:', {
+      id: user.id,
+      username: user.username,
+      name: user.name
+    })
+
+    return user
+  } catch (error) {
+    console.error('[AUTH] Failed to fetch Whop user data:', error)
+
+    // Fallback: check if user exists in DB, otherwise create with generic data
+    let user = await prisma.user.findUnique({
+      where: { id: userId }
+    })
+
+    if (!user) {
+      console.log('[AUTH] Creating user with fallback data')
+      user = await prisma.user.create({
+        data: {
+          id: userId,
+          username: `user_${userId.slice(-6)}`,
+          name: 'Whop User',
+        }
+      })
+    }
+
+    return user
+  }
 }
 
 /**
@@ -55,8 +127,7 @@ export async function getAuthUser(): Promise<AuthContext | null> {
     whopExperienceId,
     clientExperienceId,
     referer,
-    experienceFromUrl,
-    allHeaders: Object.fromEntries(Array.from(headersList.entries()).filter(([k]) => k.startsWith('x-whop')))
+    experienceFromUrl
   })
 
   if (whopUserToken) {
@@ -97,22 +168,8 @@ export async function getAuthUser(): Promise<AuthContext | null> {
     return null
   }
 
-  // Get or create user in database
-  let user = await prisma.user.findUnique({
-    where: { id: userId }
-  })
-
-  if (!user) {
-    // Create user if doesn't exist (will be populated by webhook or API call later)
-    user = await prisma.user.create({
-      data: {
-        id: userId,
-        username: 'user_' + userId.slice(-6),
-        name: 'Test User',
-        email: `user_${userId.slice(-6)}@example.com`
-      }
-    })
-  }
+  // Get or create user in database with real Whop data
+  const user = await fetchAndUpdateWhopUser(userId)
 
   // Ensure company exists - look up by experience ID first
   let company = await prisma.company.findFirst({
