@@ -26,11 +26,13 @@ async function fetchAndUpdateWhopUser(userId: string) {
     // Fetch user data from Whop
     const whopUser = await whopSdk.users.getUser({ userId: userId })
 
+    const profilePicUrl = whopUser.profilePicture?.sourceUrl || undefined
+
     console.log('[AUTH] Fetched Whop user data:', {
       id: whopUser.id,
       username: whopUser.username,
       name: whopUser.name,
-      hasProfilePic: !!whopUser.profilePictureUrl
+      hasProfilePic: !!profilePicUrl
     })
 
     // Update or create user with real Whop data
@@ -39,20 +41,20 @@ async function fetchAndUpdateWhopUser(userId: string) {
       update: {
         username: whopUser.username || undefined,
         name: whopUser.name || undefined,
-        profilePicUrl: whopUser.profilePictureUrl || undefined,
-        profilePicUrl32: whopUser.profilePictureUrl || undefined,
-        profilePicUrl64: whopUser.profilePictureUrl || undefined,
-        profilePicUrl128: whopUser.profilePictureUrl || undefined,
+        profilePicUrl: profilePicUrl,
+        profilePicUrl32: profilePicUrl,
+        profilePicUrl64: profilePicUrl,
+        profilePicUrl128: profilePicUrl,
         updatedAt: new Date()
       },
       create: {
         id: userId,
         username: whopUser.username || `user_${userId.slice(-6)}`,
         name: whopUser.name || 'Whop User',
-        profilePicUrl: whopUser.profilePictureUrl || undefined,
-        profilePicUrl32: whopUser.profilePictureUrl || undefined,
-        profilePicUrl64: whopUser.profilePictureUrl || undefined,
-        profilePicUrl128: whopUser.profilePictureUrl || undefined
+        profilePicUrl: profilePicUrl,
+        profilePicUrl32: profilePicUrl,
+        profilePicUrl64: profilePicUrl,
+        profilePicUrl128: profilePicUrl
       }
     })
 
