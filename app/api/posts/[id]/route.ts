@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, requireAccess } from '@/lib/auth'
+import { updatePostSchema } from '@/lib/validations'
 
 /**
  * GET /api/posts/:id
@@ -97,6 +98,104 @@ export async function GET(
     console.error('[API] Error fetching post:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * PUT /api/posts/:id
+ * Update a post
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const auth = await requireAccess()
+    const { id } = await params
+    const body = await request.json()
+
+    const validated = updatePostSchema.parse(body)
+
+    const post = await prisma.post.findUnique({
+      where: {
+        uuid: id
+      }
+    })
+
+    if (!post || post.isDeleted) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+    }
+
+    // Only the author can edit their own post
+    const isAuthor = post.userId === auth.user.id
+
+    if (!isAuthor) {
+      return NextResponse.json({ error: 'Only the post author can edit this post' }, { status: 403 })
+    }
+
+    // Update post
+    const updatedPost = await prisma.post.update({
+      where: { uuid: id },
+      data: {
+        ...(validated.title !== undefined && { title: validated.title }),
+        ...(validated.content !== undefined && { content: validated.content }),
+        ...(validated.isPinned !== undefined && { isPinned: validated.isPinned }),
+        updatedAt: new Date()
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            profilePicUrl64: true
+          }
+        },
+        company: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        media: {
+          orderBy: { displayOrder: 'asc' }
+        }
+      }
+    })
+
+    return NextResponse.json({
+      id: updatedPost.uuid,
+      title: updatedPost.title,
+      content: updatedPost.content,
+      contentType: updatedPost.contentType,
+      isPinned: updatedPost.isPinned,
+      likesCount: updatedPost.likesCount,
+      commentsCount: updatedPost.commentsCount,
+      createdAt: updatedPost.createdAt.toISOString(),
+      user: {
+        id: updatedPost.user.id,
+        username: updatedPost.user.username ?? 'Unknown',
+        name: updatedPost.user.name ?? 'Unknown User',
+        profilePicUrl: updatedPost.user.profilePicUrl64 ?? ''
+      },
+      company: {
+        id: updatedPost.company.id,
+        name: updatedPost.company.name
+      },
+      media: updatedPost.media.map((m) => ({
+        url: m.url,
+        thumbnailUrl: m.thumbnailUrl,
+        width: m.width,
+        height: m.height,
+        mediaType: m.mediaType
+      }))
+    })
+  } catch (error) {
+    console.error('[API] Error updating post:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }

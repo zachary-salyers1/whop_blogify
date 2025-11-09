@@ -32,6 +32,13 @@ interface Post {
     width?: number
     height?: number
   }[]
+  links?: {
+    url: string
+    title: string | null
+    description: string | null
+    imageUrl: string | null
+    domain: string | null
+  }[]
 }
 
 interface Community {
@@ -254,6 +261,18 @@ function FeedContent() {
 		}
 	}
 
+	const handleEdit = async (postId: string, title: string, content: string) => {
+		const response = await fetch(`/api/posts/${postId}`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ title, content })
+		})
+		if (response.ok) {
+			// Refresh to show updated post
+			fetchPosts(page, selectedCommunity || undefined)
+		}
+	}
+
 	const loadMore = () => {
 		const nextPage = page + 1
 		setPage(nextPage)
@@ -410,8 +429,10 @@ function FeedContent() {
 									onUnlike={handleUnlike}
 									onDelete={handleDelete}
 									onPin={handlePin}
+									onEdit={handleEdit}
 									canDelete={post.canDelete}
 									canPin={post.canPin}
+									canEdit={post.canDelete}
 									brandColor={branding.primaryColor}
 								/>
 							))}

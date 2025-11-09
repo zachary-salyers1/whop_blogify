@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAccess, requireAuth } from '@/lib/auth'
 import { createPostSchema, feedQuerySchema } from '@/lib/validations'
+import { checkPostRateLimit } from '@/lib/rate-limit'
+import { generateLinkPreviews } from '@/lib/link-preview'
 
 /**
  * GET /api/posts
@@ -109,6 +111,12 @@ export async function GET(request: NextRequest) {
             displayOrder: 'asc'
           }
         },
+        links: {
+          where: {
+            fetchSuccess: true
+          },
+          take: 3
+        },
         likes: {
           where: {
             userId: auth.user.id
@@ -156,6 +164,13 @@ export async function GET(request: NextRequest) {
         height: m.height,
         mediaType: m.mediaType
       })),
+      links: post.links.map((l) => ({
+        url: l.url,
+        title: l.title,
+        description: l.description,
+        imageUrl: l.imageUrl,
+        domain: l.domain
+      })),
       isLikedByUser: post.likes.length > 0,
       canDelete: post.userId === auth.user.id,
       canPin: auth.isAdmin && post.companyId === auth.companyId
@@ -191,6 +206,25 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireAccess()
     const body = await request.json()
+
+    // Check rate limit (50 posts per day)
+    const rateLimit = await checkPostRateLimit(auth.user.id)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit exceeded. You can create up to 50 posts per day.',
+          resetAt: rateLimit.resetAt.toISOString()
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': '50',
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': rateLimit.resetAt.toISOString()
+          }
+        }
+      )
+    }
 
     const validated = createPostSchema.parse(body)
 
@@ -275,6 +309,11 @@ export async function POST(request: NextRequest) {
         },
         media: true
       }
+    })
+
+    // Generate link previews asynchronously (don't wait for it)
+    generateLinkPreviews(post.id, validated.content).catch(error => {
+      console.error('[POST] Failed to generate link previews:', error)
     })
 
     return NextResponse.json({

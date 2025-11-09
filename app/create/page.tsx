@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDropzone } from 'react-dropzone'
 
@@ -35,7 +35,23 @@ export default function CreateBlogPage() {
   const [uploadingVideo, setUploadingVideo] = useState(false)
   const [error, setError] = useState('')
   const [isDraft, setIsDraft] = useState(false)
+  const [rateLimit, setRateLimit] = useState<{ count: number; limit: number; remaining: number } | null>(null)
 
+  // Fetch rate limit on mount
+  useEffect(() => {
+    fetch('/api/user/rate-limit')
+      .then(res => res.json())
+      .then(data => {
+        setRateLimit({
+          count: data.count,
+          limit: data.limit,
+          remaining: data.remaining
+        })
+      })
+      .catch(err => console.error('Failed to fetch rate limit:', err))
+  }, [])
+
+  // Add useEffect import at top if not already there
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (images.length >= 4) {
       setError('Maximum 4 images per blog')
@@ -178,6 +194,9 @@ export default function CreateBlogPage() {
 
       if (!response.ok) {
         const data = await response.json()
+        if (response.status === 429) {
+          throw new Error(data.error || 'Rate limit exceeded. Please try again later.')
+        }
         throw new Error(data.error || 'Failed to create blog')
       }
 
@@ -216,6 +235,11 @@ export default function CreateBlogPage() {
               </svg>
             </button>
             <h1 className="text-2xl font-black text-black">Create Blog</h1>
+            {rateLimit && (
+              <div className="text-sm text-gray-700 font-medium">
+                {rateLimit.remaining}/{rateLimit.limit} posts remaining today
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <div className="text-sm text-gray-700 font-bold hidden sm:block">

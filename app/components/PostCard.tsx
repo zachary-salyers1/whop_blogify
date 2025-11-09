@@ -33,6 +33,13 @@ interface Post {
     height?: number
     mediaType?: string
   }[]
+  links?: {
+    url: string
+    title: string | null
+    description: string | null
+    imageUrl: string | null
+    domain: string | null
+  }[]
 }
 
 interface PostCardProps {
@@ -41,16 +48,21 @@ interface PostCardProps {
   onUnlike: (postId: string) => Promise<void>
   onDelete?: (postId: string) => Promise<void>
   onPin?: (postId: string) => Promise<void>
+  onEdit?: (postId: string, title: string, content: string) => Promise<void>
   canDelete?: boolean
   canPin?: boolean
+  canEdit?: boolean
   brandColor?: string
 }
 
-export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, canPin, brandColor = '#3B82F6' }: PostCardProps) {
+export function PostCard({ post, onLike, onUnlike, onDelete, onPin, onEdit, canDelete, canPin, canEdit, brandColor = '#3B82F6' }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(post.isLikedByUser)
   const [likesCount, setLikesCount] = useState(post.likesCount)
   const [isLoading, setIsLoading] = useState(false)
   const [isPinned, setIsPinned] = useState(post.isPinned)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(post.title || '')
+  const [editContent, setEditContent] = useState(post.content)
 
   const handleLike = async () => {
     if (isLoading) return
@@ -95,6 +107,25 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleEdit = async () => {
+    if (!onEdit || isLoading) return
+    setIsLoading(true)
+    try {
+      await onEdit(post.id, editTitle, editContent)
+      setIsEditing(false)
+    } catch (error) {
+      console.error('Error editing post:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditTitle(post.title || '')
+    setEditContent(post.content)
+    setIsEditing(false)
   }
 
   return (
@@ -150,6 +181,18 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
               {isPinned ? 'Unpin' : 'Pin'}
             </button>
           )}
+          {canEdit && (
+            <button
+              onClick={() => setIsEditing(true)}
+              disabled={isLoading}
+              className="text-sm font-bold disabled:opacity-50 transition-all"
+              style={{ color: brandColor }}
+              onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.8)'}
+              onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
+            >
+              Edit
+            </button>
+          )}
           {canDelete && (
             <button
               onClick={handleDelete}
@@ -162,41 +205,92 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
         </div>
       </div>
 
-      {/* Blog Title */}
-      {post.title && (
-        <a href={`/posts/${post.id}`}>
-          <h2
-            className="text-2xl font-black text-black mb-3 transition-colors cursor-pointer"
-            onMouseEnter={(e) => e.currentTarget.style.color = brandColor}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'black'}
-          >
-            {post.title}
-          </h2>
-        </a>
-      )}
-
-      {/* Blog Content Preview */}
-      <div className="mb-4">
-        <div className="prose prose-slate max-w-none text-black line-clamp-3">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeSanitize]}
-          >
-            {post.content.substring(0, 200)}
-          </ReactMarkdown>
+      {/* Edit Mode */}
+      {isEditing ? (
+        <div className="mb-4 space-y-3">
+          <div>
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              placeholder="Blog Title"
+              className="w-full text-xl font-bold text-black border-2 border-gray-400 rounded px-3 py-2 focus:outline-none focus:ring-2"
+              style={{ '--tw-ring-color': brandColor } as React.CSSProperties}
+              maxLength={200}
+            />
+          </div>
+          <div>
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              placeholder="Blog content..."
+              className="w-full min-h-[200px] text-base text-black border-2 border-gray-400 rounded px-3 py-2 resize-none focus:outline-none focus:ring-2"
+              style={{ '--tw-ring-color': brandColor } as React.CSSProperties}
+              maxLength={50000}
+            />
+            <div className="text-sm text-gray-600 font-medium mt-1">
+              {editContent.length} / 50000 characters
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleEdit}
+              disabled={isLoading || !editTitle.trim() || !editContent.trim()}
+              className="px-4 py-2 text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ backgroundColor: brandColor }}
+              onMouseEnter={(e) => !isLoading && (e.currentTarget.style.filter = 'brightness(0.9)')}
+              onMouseLeave={(e) => !isLoading && (e.currentTarget.style.filter = 'brightness(1)')}
+            >
+              {isLoading ? 'Saving...' : 'Save Changes'}
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              disabled={isLoading}
+              className="px-4 py-2 bg-gray-200 text-black font-bold rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
-        {post.content.length > 200 && (
-          <a
-            href={`/posts/${post.id}`}
-            className="inline-block mt-2 font-bold transition-colors"
-            style={{ color: brandColor }}
-            onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.8)'}
-            onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
-          >
-            Read more →
-          </a>
-        )}
-      </div>
+      ) : (
+        <>
+          {/* Blog Title */}
+          {post.title && (
+            <a href={`/posts/${post.id}`}>
+              <h2
+                className="text-2xl font-black text-black mb-3 transition-colors cursor-pointer"
+                onMouseEnter={(e) => e.currentTarget.style.color = brandColor}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'black'}
+              >
+                {post.title}
+              </h2>
+            </a>
+          )}
+
+          {/* Blog Content Preview */}
+          <div className="mb-4">
+            <div className="prose prose-slate max-w-none text-black line-clamp-3">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeSanitize]}
+              >
+                {post.content.substring(0, 200)}
+              </ReactMarkdown>
+            </div>
+            {post.content.length > 200 && (
+              <a
+                href={`/posts/${post.id}`}
+                className="inline-block mt-2 font-bold transition-colors"
+                style={{ color: brandColor }}
+                onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.8)'}
+                onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
+              >
+                Read more →
+              </a>
+            )}
+          </div>
+        </>
+      )}
 
       {post.media && post.media.length > 0 && (
         <div className={`mb-4 grid gap-2 ${
@@ -221,6 +315,53 @@ export function PostCard({ post, onLike, onUnlike, onDelete, onPin, canDelete, c
                 />
               )}
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* Link Previews */}
+      {post.links && post.links.length > 0 && (
+        <div className="mb-4 space-y-3">
+          {post.links.map((link, index) => (
+            <a
+              key={index}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block border-2 rounded-lg overflow-hidden transition-all hover:shadow-md"
+              style={{ borderColor: `${brandColor}40` }}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = brandColor}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = `${brandColor}40`}
+            >
+              <div className="flex gap-3 p-3">
+                {link.imageUrl && (
+                  <div className="w-24 h-24 flex-shrink-0">
+                    <img
+                      src={link.imageUrl}
+                      alt={link.title || ''}
+                      className="w-full h-full object-cover rounded"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  {link.domain && (
+                    <div className="text-xs font-bold text-gray-600 mb-1">
+                      {link.domain}
+                    </div>
+                  )}
+                  {link.title && (
+                    <div className="font-bold text-black mb-1 line-clamp-2">
+                      {link.title}
+                    </div>
+                  )}
+                  {link.description && (
+                    <div className="text-sm text-gray-700 line-clamp-2">
+                      {link.description}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </a>
           ))}
         </div>
       )}

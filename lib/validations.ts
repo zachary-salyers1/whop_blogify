@@ -26,7 +26,8 @@ export const createPostSchema = z.object({
 })
 
 export const updatePostSchema = z.object({
-  content: z.string().min(1).max(5000).optional(),
+  title: z.string().min(1).max(200).optional(),
+  content: z.string().min(1).max(50000).optional(),
   isPinned: z.boolean().optional()
 })
 
