@@ -24,14 +24,14 @@ export interface AuthContext {
 async function fetchAndUpdateWhopUser(userId: string) {
   try {
     // Fetch user data from Whop
-    const whopUser = await whopSdk.users.retrieve({ id: userId })
+    const whopUser = await whopSdk.getUser({ id: userId })
 
     console.log('[AUTH] Fetched Whop user data:', {
       id: whopUser.id,
       username: whopUser.username,
       name: whopUser.name,
       email: whopUser.email,
-      hasProfilePic: !!whopUser.profile_pic_url
+      hasProfilePic: !!whopUser.profilePictureUrl
     })
 
     // Update or create user with real Whop data
@@ -41,10 +41,10 @@ async function fetchAndUpdateWhopUser(userId: string) {
         username: whopUser.username || undefined,
         name: whopUser.name || undefined,
         email: whopUser.email || undefined,
-        profilePicUrl: whopUser.profile_pic_url || undefined,
-        profilePicUrl32: whopUser.profile_pic_url || undefined,
-        profilePicUrl64: whopUser.profile_pic_url || undefined,
-        profilePicUrl128: whopUser.profile_pic_url || undefined,
+        profilePicUrl: whopUser.profilePictureUrl || undefined,
+        profilePicUrl32: whopUser.profilePictureUrl || undefined,
+        profilePicUrl64: whopUser.profilePictureUrl || undefined,
+        profilePicUrl128: whopUser.profilePictureUrl || undefined,
         updatedAt: new Date()
       },
       create: {
@@ -52,10 +52,10 @@ async function fetchAndUpdateWhopUser(userId: string) {
         username: whopUser.username || `user_${userId.slice(-6)}`,
         name: whopUser.name || 'Whop User',
         email: whopUser.email || undefined,
-        profilePicUrl: whopUser.profile_pic_url || undefined,
-        profilePicUrl32: whopUser.profile_pic_url || undefined,
-        profilePicUrl64: whopUser.profile_pic_url || undefined,
-        profilePicUrl128: whopUser.profile_pic_url || undefined
+        profilePicUrl: whopUser.profilePictureUrl || undefined,
+        profilePicUrl32: whopUser.profilePictureUrl || undefined,
+        profilePicUrl64: whopUser.profilePictureUrl || undefined,
+        profilePicUrl128: whopUser.profilePictureUrl || undefined
       }
     })
 
